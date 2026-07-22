@@ -233,101 +233,90 @@ class WorkoutPlanTab extends ConsumerWidget {
         for (final day in plan.days)
           Card(
             margin: const EdgeInsets.only(bottom: 12),
-            child: ExpansionTile(
-              leading: CircleAvatar(
-                child: Text(_abbreviateDayLabel(day.dayLabel)),
-              ),
-              title: Text('${_abbreviateDayLabel(day.dayLabel)} • ${day.muscleGroup}'),
-              subtitle: Text('${day.exercises.length} exercícios'),
-              trailing: IconButton(
-                icon: const Icon(Icons.play_arrow),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => WorkoutSessionScreen(day: day, plan: plan),
-                    ),
-                  );
-                },
-                tooltip: 'Iniciar treino',
-              ),
-              children: [
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: day.exercises.length,
-                  itemBuilder: (context, index) {
-                    final exercise = day.exercises[index];
-                    return ListTile(
-                      leading: Text(
-                        '${index + 1}',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.primary,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        child: Text(_abbreviateDayLabel(day.dayLabel)),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${_abbreviateDayLabel(day.dayLabel)} · ${day.muscleGroup}',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                            Text(
+                              day.exercises.isEmpty
+                                  ? 'Descanso'
+                                  : '${day.exercises.length} exercícios',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ],
                         ),
                       ),
-                      title: Text(exercise.name),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('${exercise.series} séries x ${exercise.repetitions} reps'),
-                          if (exercise.technique != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.secondaryContainer,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  exercise.technique!,
-                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSecondaryContainer,
-                                  ),
-                                ),
+                    ],
+                  ),
+                  if (day.exercises.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('Iniciar'),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                WorkoutSessionScreen(day: day, plan: plan),
+                          ),
+                        );
+                      },
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                    ),
+                    Theme(
+                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        childrenPadding: EdgeInsets.zero,
+                        title: Text(
+                          'Ver exercícios',
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                color: colorScheme.primary,
                               ),
-                            ),
-                          if (exercise.combinedExercises != null && exercise.combinedExercises!.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Em sequência:',
-                                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                      fontWeight: FontWeight.bold,
+                        ),
+                        children: [
+                          for (var index = 0; index < day.exercises.length; index++)
+                            ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              leading: Text(
+                                '${index + 1}',
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      color: colorScheme.primary,
                                     ),
-                                  ),
-                                  ...exercise.combinedExercises!.map((ex) => Padding(
-                                    padding: const EdgeInsets.only(left: 12, top: 2),
-                                    child: Text(
-                                      '→ $ex',
-                                      style: Theme.of(context).textTheme.bodySmall,
-                                    ),
-                                  )),
-                                ],
+                              ),
+                              title: Text(day.exercises[index].name),
+                              subtitle: Text(
+                                '${day.exercises[index].series}×${day.exercises[index].repetitions}',
                               ),
                             ),
                         ],
                       ),
-                    );
-                  },
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: FilledButton.icon(
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('Iniciar este treino'),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => WorkoutSessionScreen(day: day, plan: plan),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
       ],

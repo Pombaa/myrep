@@ -86,4 +86,14 @@ class WorkoutForegroundService {
       print('Erro ao iniciar timer: $e');
     }
   }
+
+  /// Stops the native rest countdown without notifying Flutter again
+  /// (used when the UI already skipped rest).
+  Future<void> stopRestTimer() async {
+    try {
+      await _channel.invokeMethod('stopRestTimer');
+    } catch (e) {
+      print('Erro ao parar timer: $e');
+    }
+  }
 }

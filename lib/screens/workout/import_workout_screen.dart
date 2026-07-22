@@ -61,6 +61,66 @@ class _ImportWorkoutScreenState extends ConsumerState<ImportWorkoutScreen> {
     super.dispose();
   }
 
+  bool get _looksLikeJson {
+    final text = _textController.text.trim();
+    return text.startsWith('[') || text.startsWith('{');
+  }
+
+  /// Parses native app JSON (or AI-style {treinos}) without calling the LLM.
+  /// Returns null when the text is free-form and needs AI conversion.
+  List<WorkoutDay>? _tryParseLocalJson(String text) {
+    if (!(text.startsWith('[') || text.startsWith('{'))) return null;
+
+    try {
+      final decoded = jsonDecode(text);
+
+      if (decoded is List) {
+        if (decoded.isEmpty) return [];
+        final first = decoded.first;
+        if (first is! Map) return null;
+        final map = first.cast<String, Object?>();
+
+        if (map.containsKey('dia') && map.containsKey('exercicios')) {
+          return decoded
+              .map((e) =>
+                  WorkoutDay.fromJson((e as Map).cast<String, Object?>()))
+              .toList();
+        }
+
+        if (map.containsKey('nome') && map.containsKey('exercicios')) {
+          return decoded.map(_dayFromMap).toList();
+        }
+        return null;
+      }
+
+      if (decoded is Map) {
+        final map = decoded.cast<String, Object?>();
+
+        if (map['treinos'] is List) {
+          return (map['treinos'] as List).map(_dayFromMap).toList();
+        }
+
+        final daysRaw = map['dias'] ?? map['days'];
+        if (daysRaw is List &&
+            daysRaw.isNotEmpty &&
+            daysRaw.first is Map &&
+            (daysRaw.first as Map).containsKey('dia')) {
+          return daysRaw
+              .map((e) =>
+                  WorkoutDay.fromJson((e as Map).cast<String, Object?>()))
+              .toList();
+        }
+
+        if (map.containsKey('dia') && map.containsKey('exercicios')) {
+          return [WorkoutDay.fromJson(map)];
+        }
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
   Future<void> _convert() async {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
@@ -72,6 +132,15 @@ class _ImportWorkoutScreenState extends ConsumerState<ImportWorkoutScreen> {
     });
 
     try {
+      final localDays = _tryParseLocalJson(text);
+      if (localDays != null) {
+        if (localDays.isEmpty) {
+          throw Exception('JSON sem dias de treino.');
+        }
+        setState(() => _preview = localDays);
+        return;
+      }
+
       final aiProvider = ref.read(selectedAiProviderProvider);
       final apiKeyState = aiProvider == AiProvider.nvidia
           ? ref.read(nvidiaKeyProvider)
@@ -213,7 +282,7 @@ class _ImportWorkoutScreenState extends ConsumerState<ImportWorkoutScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Cole o texto do treino do seu personal (WhatsApp, foto, anotação…) e a IA converte automaticamente.',
+                      'Cole o JSON do app para importar na hora, ou texto livre do personal (WhatsApp, anotação…) — a IA só é usada no texto livre.',
                       style: textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSecondaryContainer),
                     ),
@@ -289,8 +358,12 @@ class _ImportWorkoutScreenState extends ConsumerState<ImportWorkoutScreen> {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white),
                     )
-                  : const Icon(Icons.auto_awesome),
-              label: Text(_isConverting ? 'Convertendo...' : 'Converter com IA'),
+                  : Icon(_looksLikeJson
+                      ? Icons.data_object
+                      : Icons.auto_awesome),
+              label: Text(_isConverting
+                  ? (_looksLikeJson ? 'Importando...' : 'Convertendo...')
+                  : (_looksLikeJson ? 'Importar JSON' : 'Converter com IA')),
               style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(48)),
             ),

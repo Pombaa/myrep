@@ -35,6 +35,7 @@ class WorkoutForegroundService : Service() {
         const val ACTION_UPDATE = "com.example.treinai.action.UPDATE"
         const val ACTION_START_REST = "com.example.treinai.action.START_REST"
         const val ACTION_CANCEL_WORKOUT = "com.example.treinai.action.CANCEL_WORKOUT"
+        const val ACTION_STOP_REST_SILENT = "com.example.treinai.action.STOP_REST_SILENT"
         
         var methodChannel: MethodChannel? = null
     }
@@ -50,6 +51,7 @@ class WorkoutForegroundService : Service() {
             ACTION_UPDATE -> updateNotification(intent)
             ACTION_START_REST -> startRestTimer(intent)
             ACTION_CANCEL_WORKOUT -> handleCancelWorkout()
+            ACTION_STOP_REST_SILENT -> stopRestSilent()
         }
         
         return START_STICKY
@@ -184,6 +186,19 @@ class WorkoutForegroundService : Service() {
             restTimer = null
         }
         stopAlarm()
+    }
+
+    /** Stops rest from the Flutter UI without invoking onStopRest (avoids feedback loop). */
+    private fun stopRestSilent() {
+        stopRestTimer()
+        remainingSeconds = 0
+        val notification = buildNotification(
+            "Treino em andamento",
+            "Descanso pulado",
+            false
+        )
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(NOTIFICATION_ID, notification)
     }
     
     private fun playAlarmAndVibrate() {

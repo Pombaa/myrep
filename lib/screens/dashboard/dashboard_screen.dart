@@ -2,13 +2,17 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/utils/workout_day_matcher.dart';
 import '../../models/body_measurement.dart';
 import '../../models/progress_summary.dart';
 import '../../models/user_profile.dart';
+import '../../models/workout_plan.dart';
 import '../../providers/measurement_providers.dart';
 import '../../providers/progress_providers.dart';
 import '../../providers/user_providers.dart';
+import '../../providers/workout_providers.dart';
 import '../assessment/body_assessment_screen.dart';
+import '../workout/workout_session_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -18,8 +22,10 @@ class DashboardScreen extends ConsumerWidget {
     final profileState = ref.watch(userProfileProvider);
     final measurementsState = ref.watch(bodyMeasurementsProvider);
     final progressState = ref.watch(progressSummaryProvider);
-  final UserProfile? profile = profileState.valueOrNull;
+    final planState = ref.watch(workoutPlanProvider);
+    final UserProfile? profile = profileState.valueOrNull;
     final measurements = measurementsState.valueOrNull ?? [];
+    final plan = planState.valueOrNull;
 
     return Scaffold(
       appBar: AppBar(
@@ -30,6 +36,7 @@ class DashboardScreen extends ConsumerWidget {
             onPressed: () {
               ref.read(bodyMeasurementsProvider.notifier).refresh();
               ref.invalidate(progressSummaryProvider);
+              ref.read(workoutPlanProvider.notifier).refresh();
             },
           ),
         ],
@@ -38,11 +45,14 @@ class DashboardScreen extends ConsumerWidget {
         onRefresh: () async {
           await ref.read(bodyMeasurementsProvider.notifier).refresh();
           ref.invalidate(progressSummaryProvider);
+          await ref.read(workoutPlanProvider.notifier).refresh();
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
+            _TodayWorkoutCard(plan: plan),
+            const SizedBox(height: 16),
             if (measurements.isEmpty) ...[
               Card(
                 child: Padding(
@@ -97,6 +107,111 @@ class DashboardScreen extends ConsumerWidget {
                 },
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TodayWorkoutCard extends StatelessWidget {
+  const _TodayWorkoutCard({required this.plan});
+
+  final WorkoutPlan? plan;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final todayName = weekdayLabelPt();
+
+    if (plan == null) {
+      return Card(
+        color: colorScheme.primaryContainer.withValues(alpha: 0.35),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Treino de hoje', style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(
+                'Nenhum plano ainda. Crie ou importe em Treinos.',
+                style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final day = findPlanDayForDate(plan!);
+    if (day == null) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Treino de hoje · $todayName',
+                  style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(
+                'Hoje não está no plano. Abra Treinos para escolher outro dia.',
+                style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final isRest = day.exercises.isEmpty;
+    return Card(
+      color: colorScheme.primaryContainer.withValues(alpha: 0.4),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Treino de hoje',
+              style: textTheme.labelLarge?.copyWith(
+                color: colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${day.dayLabel} · ${day.muscleGroup}',
+              style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              isRest
+                  ? 'Dia de descanso'
+                  : '${day.exercises.length} exercícios',
+              style: textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            if (!isRest) ...[
+              const SizedBox(height: 14),
+              FilledButton.icon(
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Iniciar treino'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                ),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => WorkoutSessionScreen(day: day, plan: plan),
+                    ),
+                  );
+                },
+              ),
+            ],
           ],
         ),
       ),

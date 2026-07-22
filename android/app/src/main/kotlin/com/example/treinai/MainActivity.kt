@@ -46,6 +46,10 @@ class MainActivity : FlutterActivity() {
                     startRestTimer(seconds, exerciseName, currentSet, totalSets)
                     result.success(null)
                 }
+                "stopRestTimer" -> {
+                    stopRestTimer()
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -93,6 +97,13 @@ class MainActivity : FlutterActivity() {
             putExtra("exerciseName", exerciseName)
             putExtra("currentSet", currentSet)
             putExtra("totalSets", totalSets)
+        }
+        startService(intent)
+    }
+
+    private fun stopRestTimer() {
+        val intent = Intent(this, WorkoutForegroundService::class.java).apply {
+            action = WorkoutForegroundService.ACTION_STOP_REST_SILENT
         }
         startService(intent)
     }
