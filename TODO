@@ -1,0 +1,221 @@
+Quero que você gere o código completo (sem omitir linhas) de um aplicativo Flutter (Android) chamado FitAI Trainer, que cria, gerencia e adapta treinos personalizados com base nas medidas corporais, idade, objetivos e histórico de evolução do usuário.
+
+🧱 Arquitetura do Projeto
+
+Frontend: Flutter + Dart
+
+Banco local: SQLite (para dados do usuário, medidas corporais, treinos e histórico da IA)
+
+IA: API gratuita da OpenAI (modelo GPT)
+
+Backend: Offline/local (requisições diretas do app à IA)
+
+Gerenciamento de estado: Riverpod ou Provider
+
+Armazenamento persistente: Histórico de treinos e avaliações corporais em SQLite
+
+Contexto da IA: Cada requisição à IA deve incluir:
+
+Perfil físico atual
+
+Objetivo atual
+
+Último treino executado
+
+Última avaliação corporal
+
+Histórico resumido de progresso
+
+🎯 Funcionalidades Principais
+1. Cadastro e Perfil Físico
+
+Tela inicial de cadastro:
+
+Nome, idade, sexo, nível de condicionamento físico (iniciante, intermediário, avançado)
+
+Peso, altura e medidas corporais: braço, peito, cintura, abdômen, quadril, coxa, panturrilha
+
+Cálculo automático:
+
+Percentual de gordura corporal (US Navy, Jackson & Pollock ou Durnin & Womersley)
+
+Massa magra e massa gorda estimada
+
+Histórico de avaliações corporais salvas localmente (cada registro inclui data, medidas e resultados calculados).
+
+2. Avaliação Corporal
+
+Tela dedicada à reavaliação física:
+
+Usuário pode inserir novas medidas.
+
+O app recalcula gordura, massa magra e IMC.
+
+Histórico armazenado no SQLite.
+
+A IA receberá tanto a avaliação atual quanto a anterior para entender a evolução do usuário.
+
+3. Geração de Treino com IA
+
+A IA deve gerar um plano de treino inteligente, com base em:
+
+Dados físicos e objetivos atuais.
+
+Última avaliação corporal e sua comparação com a anterior.
+
+Último treino executado (para ajustar progressão de carga e volume).
+
+O usuário pode conversar com a IA para ajustar o treino:
+
+Focar em grupos musculares específicos.
+
+Adaptar devido a lesões.
+
+Alinhar o treino a outro esporte (corrida, futebol, natação, etc.).
+
+O plano deve ser retornado em JSON estruturado, contendo:
+
+[
+  {
+    "dia": "Segunda",
+    "grupo_muscular": "Peito e Tríceps",
+    "exercicios": [
+      { "nome": "Supino Reto", "series": 4, "reps": 10, "carga_sugerida": 40 },
+      { "nome": "Crossover", "series": 3, "reps": 12, "carga_sugerida": 15 }
+    ]
+  }
+]
+
+🧠 Contexto enviado à IA
+
+Antes de gerar um novo treino, o app deve montar e enviar à IA um prompt estruturado como o exemplo abaixo:
+
+Você é um personal trainer virtual especializado em periodização e progressão de carga.
+
+Contexto do usuário:
+- Nome: André
+- Idade: 28 anos
+- Sexo: Masculino
+- Altura: 1.79m
+- Peso atual: 78 kg
+- Percentual de gordura: 17%
+- Massa magra: 64.7 kg
+- Nível: Intermediário
+- Objetivo: Ganhar massa magra
+- Restrições: Lesão leve no ombro direito
+
+Última avaliação corporal (há 3 meses):
+- Peso: 75.5 kg
+- Percentual de gordura: 19%
+- Massa magra: 61.1 kg
+
+Último treino executado (semana passada):
+[
+  { "dia": "Segunda", "grupo_muscular": "Peito e Tríceps", "exercicios": [
+      { "nome": "Supino Reto", "series": 4, "reps": 10, "carga_utilizada": 36 },
+      { "nome": "Tríceps Corda", "series": 3, "reps": 12, "carga_utilizada": 20 }
+    ]
+  },
+  { "dia": "Terça", "grupo_muscular": "Costas e Bíceps", ... }
+]
+
+Histórico resumido:
+- Peso corporal aumentou +2.5kg
+- Percentual de gordura reduziu -2%
+- Cargas médias de treino aumentaram +10%
+
+Tarefa:
+Gere um novo treino de 5 dias, equilibrado, com foco em hipertrofia e ênfase em progressão gradual.
+Evite sobrecarregar o ombro direito.
+Responda apenas em JSON válido.
+
+
+Esse contexto deve ser montado dinamicamente no app a partir dos dados salvos localmente em SQLite.
+
+📊 Histórico e Acompanhamento
+
+Armazenar:
+
+Todas as medidas corporais (com data)
+
+Todos os treinos (gerados pela IA e executados)
+
+Evolução de cargas e repetições
+
+Exibir gráficos com fl_chart mostrando:
+
+Evolução da massa magra
+
+Redução de gordura
+
+Aumento de cargas médias por grupo muscular
+
+A cada 90 dias, o app deve:
+
+Notificar o usuário para nova avaliação
+
+Gerar automaticamente uma proposta de treino atualizado baseada no progresso
+
+💪 Tela de Treino
+
+Listagem do treino atual com:
+
+Exercício, séries, repetições e carga atual
+
+Timer de descanso entre séries
+
+Botão “Concluído”
+
+Ao finalizar, registrar automaticamente o treino no histórico (data, carga, repetições, observações).
+
+🧩 Extras
+
+Notificações locais com flutter_local_notifications
+
+Tema claro/escuro (Material 3)
+
+Integração futura com Google Fit / Health Connect
+
+Exportar histórico em CSV ou JSON
+
+⚙️ Requisitos Técnicos
+
+sqflite (banco local)
+
+dio ou http (chamadas à OpenAI)
+
+flutter_riverpod (estado)
+
+fl_chart (gráficos)
+
+intl (datas e formatação)
+
+flutter_local_notifications (lembretes)
+
+path_provider e json_serializable (armazenamento e conversões)
+
+Tema Material 3 responsivo
+
+💡 Objetivo Final
+
+Criar o FitAI Trainer, um assistente inteligente de treinos personalizados, que:
+
+Entende as medidas e objetivos do usuário
+
+Aprende com as avaliações corporais anteriores
+
+Lembra o último treino e ajusta a progressão
+
+Monitora a evolução e sugere ajustes automáticos
+
+Funciona offline, exceto pelas chamadas à IA
+
+Quero que você gere toda a estrutura de código completa do app (sem omitir linhas), incluindo:
+
+Estrutura de pastas (lib/screens, lib/models, lib/services, etc.)
+
+Banco SQLite com tabelas para usuários, medidas, treinos e IA histórico
+
+Interface moderna com Material 3
+
+Comunicação com a IA conforme o contexto acima
