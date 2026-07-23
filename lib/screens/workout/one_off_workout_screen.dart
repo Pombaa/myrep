@@ -69,6 +69,8 @@ class _OneOffWorkoutScreenState extends ConsumerState<OneOffWorkoutScreen> {
 
     final fromJson = _tryParseOneOffJson(text);
     if (fromJson != null) {
+      // Local success — stop any "converting" impression.
+      if (_isConverting) _cancelAiConvert();
       setState(() {
         _exercises = fromJson.exercises;
         _parseError =
@@ -80,11 +82,14 @@ class _OneOffWorkoutScreenState extends ConsumerState<OneOffWorkoutScreen> {
     }
 
     final parsed = parseOneOffWorkoutText(text);
+    if (parsed.isNotEmpty && _isConverting) {
+      _cancelAiConvert();
+    }
     setState(() {
       _exercises = parsed;
       _parseHint = parsed.isEmpty ? null : 'Lido como texto';
       _parseError = parsed.isEmpty
-          ? 'Não reconheci automaticamente. Toque em “Converter com IA”.'
+          ? 'Não reconheci automaticamente. Use “Converter com IA”.'
           : null;
     });
   }
@@ -102,10 +107,13 @@ class _OneOffWorkoutScreenState extends ConsumerState<OneOffWorkoutScreen> {
     }
   }
 
+  int _aiRequestId = 0;
+
   Future<void> _convertWithAi() async {
     final text = _pasteController.text.trim();
     if (text.isEmpty) return;
 
+    final requestId = ++_aiRequestId;
     setState(() {
       _isConverting = true;
       _parseError = null;
@@ -139,6 +147,8 @@ class _OneOffWorkoutScreenState extends ConsumerState<OneOffWorkoutScreen> {
         ],
       );
 
+      if (!mounted || requestId != _aiRequestId) return;
+
       final decoded = jsonDecode(result) as Map<String, dynamic>;
       final raw = decoded['treinos'];
       final List<dynamic> workouts = raw is List ? raw : [decoded];
@@ -149,15 +159,27 @@ class _OneOffWorkoutScreenState extends ConsumerState<OneOffWorkoutScreen> {
         _exercises = day.exercises;
         _parseHint = 'Convertido com IA';
         _parseError = null;
+        _isConverting = false;
         _applyMeta(day.dayLabel, day.muscleGroup);
       });
     } catch (e) {
+      if (!mounted || requestId != _aiRequestId) return;
       setState(() {
         _parseError = e.toString().replaceFirst('Exception: ', '');
+        _isConverting = false;
       });
-    } finally {
-      if (mounted) setState(() => _isConverting = false);
     }
+  }
+
+  void _cancelAiConvert() {
+    _aiRequestId++;
+    setState(() {
+      _isConverting = false;
+      _parseError = null;
+      if (_exercises.isNotEmpty) {
+        _parseHint = _parseHint ?? 'Preview atual';
+      }
+    });
   }
 
   WorkoutDay _dayFromAiMap(dynamic raw) {
@@ -323,13 +345,65 @@ class _OneOffWorkoutScreenState extends ConsumerState<OneOffWorkoutScreen> {
               ),
             ),
           ),
-          if (_parseHint != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _parseHint!,
-              style: textTheme.labelMedium?.copyWith(
-                color: colorScheme.primary,
-                fontWeight: FontWeight.w600,
+          if (_parseHint != null && _exercises.isNotEmpty && !_isConverting) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, color: colorScheme.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Pronto · $_parseHint · ${_exercises.length} exercícios',
+                      style: textTheme.labelLarge?.copyWith(
+                        color: colorScheme.onPrimaryContainer,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (_isConverting) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _exercises.isEmpty
+                          ? 'Convertendo com IA…'
+                          : 'IA refinando… (já pode iniciar com o preview)',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  if (_isConverting)
+                    TextButton(
+                      onPressed: _cancelAiConvert,
+                      child: const Text('Cancelar'),
+                    ),
+                ],
               ),
             ),
           ],
@@ -340,29 +414,17 @@ class _OneOffWorkoutScreenState extends ConsumerState<OneOffWorkoutScreen> {
               style: textTheme.bodySmall?.copyWith(color: colorScheme.error),
             ),
           ],
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed:
-                  (!hasText || _isConverting) ? null : _convertWithAi,
-              icon: _isConverting
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.auto_awesome),
-              label: Text(
-                _isConverting ? 'Convertendo com IA...' : 'Converter com IA',
-              ),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
+          if (_exercises.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _start,
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('Iniciar agora'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
               ),
             ),
-          ),
-          if (_exercises.isNotEmpty) ...[
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             Text(
               '${_exercises.length} exercícios',
               style:
@@ -415,15 +477,29 @@ class _OneOffWorkoutScreenState extends ConsumerState<OneOffWorkoutScreen> {
                 ),
               ),
           ],
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: _exercises.isEmpty ? null : _start,
-            icon: const Icon(Icons.play_arrow_rounded),
-            label: const Text('Iniciar agora'),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(52),
+          const SizedBox(height: 12),
+          // IA só como opção secundária — não bloqueia a sensação de "pronto"
+          if (hasText)
+            TextButton.icon(
+              onPressed: _isConverting ? null : _convertWithAi,
+              icon: const Icon(Icons.auto_awesome, size: 18),
+              label: Text(
+                _exercises.isEmpty
+                    ? 'Converter com IA'
+                    : 'Reconverter com IA (opcional)',
+              ),
             ),
-          ),
+          if (_exercises.isEmpty) ...[
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: null,
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('Iniciar agora'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+              ),
+            ),
+          ],
         ],
       ),
     );
