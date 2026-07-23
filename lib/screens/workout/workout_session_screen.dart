@@ -35,8 +35,6 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
   int _currentExerciseIndex = 0;
   int _currentSet = 1;
   bool _isResting = false;
-  bool _showAdjust = false;
-  bool _showTips = false;
   bool _showNotes = false;
 
   int _restSecondsRemaining = 0;
@@ -261,8 +259,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
     final isUsingSubstitute = ref
         .read(exerciseSelectionProvider.notifier)
         .isUsingSubstitute(0, _currentExerciseIndex);
-    final tipLine = exercise.technique ?? exercise.notes;
-    final hasTips = tipLine != null ||
+    final hasTips = exercise.technique != null ||
         exercise.eccentricSeconds != null ||
         exercise.concentricSeconds != null ||
         exercise.restBetweenSetsSeconds != null ||
@@ -280,21 +277,31 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
           ),
           PopupMenuButton<String>(
             onSelected: (value) {
+              if (value == 'notes') setState(() => _showNotes = true);
               if (value == 'finish') _finishWorkout();
               if (value == 'cancel') _cancelWorkout();
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'finish', child: Text('Concluir treino')),
-              PopupMenuItem(value: 'cancel', child: Text('Cancelar treino')),
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'notes',
+                child: Text(_showNotes || _notesController.text.isNotEmpty
+                    ? 'Editar notas'
+                    : 'Notas'),
+              ),
+              const PopupMenuItem(
+                  value: 'finish', child: Text('Concluir treino')),
+              const PopupMenuItem(
+                  value: 'cancel', child: Text('Cancelar treino')),
             ],
           ),
         ],
       ),
       body: SafeArea(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
               child: _ProgressBar(
                 current: _currentExerciseIndex,
                 total: _exercises.length,
@@ -302,153 +309,109 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
                 totalSets: exercise.series,
               ),
             ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _displayName(_currentExerciseIndex),
-                            style: textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              height: 1.15,
-                            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _displayName(_currentExerciseIndex),
+                          style: textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
                           ),
-                        ),
-                        if (hasSubstitute)
-                          IconButton(
-                            icon: Icon(
-                              isUsingSubstitute
-                                  ? Icons.swap_horiz
-                                  : Icons.swap_horiz_outlined,
-                              color: isUsingSubstitute
-                                  ? colorScheme.primary
-                                  : null,
-                            ),
-                            tooltip: isUsingSubstitute
-                                ? 'Voltar ao original'
-                                : 'Usar substituto',
-                            onPressed: () {
-                              ref
-                                  .read(exerciseSelectionProvider.notifier)
-                                  .toggleExercise(0, _currentExerciseIndex);
-                              setState(() {});
-                            },
-                          ),
-                      ],
-                    ),
-                    if (isUsingSubstitute && hasSubstitute) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Substituto de ${exercise.name}',
-                        style: textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
+                      if (hasSubstitute)
+                        IconButton(
+                          icon: Icon(
+                            isUsingSubstitute
+                                ? Icons.swap_horiz
+                                : Icons.swap_horiz_outlined,
+                            color: isUsingSubstitute
+                                ? colorScheme.primary
+                                : null,
+                          ),
+                          tooltip: isUsingSubstitute
+                              ? 'Voltar ao original'
+                              : 'Usar substituto',
+                          onPressed: () {
+                            ref
+                                .read(exerciseSelectionProvider.notifier)
+                                .toggleExercise(0, _currentExerciseIndex);
+                            setState(() {});
+                          },
+                        ),
                     ],
-                    const SizedBox(height: 8),
+                  ),
+                  if (isUsingSubstitute && hasSubstitute) ...[
+                    const SizedBox(height: 4),
                     Text(
-                      'Série $_currentSet de ${exercise.series}',
-                      style: textTheme.titleMedium?.copyWith(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.w600,
+                      'Substituto de ${exercise.name}',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    if (tipLine != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        tipLine,
-                        maxLines: _showTips ? null : 1,
-                        overflow: _showTips
-                            ? TextOverflow.visible
-                            : TextOverflow.ellipsis,
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                    if (hasTips)
-                      TextButton(
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        onPressed: () =>
-                            setState(() => _showTips = !_showTips),
-                        child: Text(_showTips ? 'Ocultar dicas' : 'Ver dicas'),
-                      ),
-                    if (_showTips && hasTips)
-                      _TipsPanel(exercise: exercise),
-                    if (recorded.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      _RecordedSetsChips(sets: recorded),
-                    ],
-                    const SizedBox(height: 28),
-                    Center(
-                      child: Column(
-                        children: [
-                          Text(
-                            '${_currentReps()} reps',
-                            style: textTheme.displaySmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _currentLoad() > 0
-                                ? '${_formatLoad(_currentLoad())} kg'
-                                : 'sem carga',
-                            style: textTheme.headlineSmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextButton(
-                            onPressed: () =>
-                                setState(() => _showAdjust = !_showAdjust),
-                            child: Text(
-                              _showAdjust ? 'Fechar ajuste' : 'Ajustar',
-                            ),
-                          ),
-                        ],
-                      ),
+                  ],
+                  const SizedBox(height: 10),
+                  Text(
+                    'Série $_currentSet de ${exercise.series}',
+                    style: textTheme.titleMedium?.copyWith(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w600,
                     ),
-                    if (_showAdjust) ...[
-                      const SizedBox(height: 8),
-                      _AdjustPanel(
-                        onRepsDelta: _nudgeReps,
-                        onLoadDelta: _nudgeLoad,
-                        repsController:
-                            _repsControllers[_currentExerciseIndex],
-                        loadController:
-                            _loadControllers[_currentExerciseIndex],
-                        onChanged: () => setState(() {}),
+                  ),
+                  if (hasTips) ...[
+                    const SizedBox(height: 4),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: colorScheme.primary,
                       ),
-                    ],
-                    const SizedBox(height: 16),
+                      onPressed: () => _showTipsSheet(exercise),
+                      child: const Text('Ver dicas'),
+                    ),
+                  ],
+                  if (recorded.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    _RecordedSetsChips(sets: recorded),
+                  ],
+                ],
+              ),
+            ),
+            // Hero zone: steppers centered in remaining space
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    const Spacer(flex: 2),
+                    _SetSteppers(
+                      reps: _currentReps(),
+                      load: _currentLoad(),
+                      loadLabel: _currentLoad() > 0
+                          ? '${_formatLoad(_currentLoad())} kg'
+                          : 'sem carga',
+                      onRepsDelta: _nudgeReps,
+                      onLoadDelta: _nudgeLoad,
+                    ),
+                    const Spacer(flex: 3),
                     if (_showNotes)
-                      TextField(
-                        controller: _notesController,
-                        maxLines: 2,
-                        decoration: const InputDecoration(
-                          labelText: 'Observações do treino',
-                          hintText: 'Opcional',
-                        ),
-                      )
-                    else
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: TextButton.icon(
-                          onPressed: () =>
-                              setState(() => _showNotes = true),
-                          icon: const Icon(Icons.notes, size: 18),
-                          label: const Text('Notas'),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: TextField(
+                          controller: _notesController,
+                          maxLines: 2,
+                          decoration: const InputDecoration(
+                            labelText: 'Observações do treino',
+                            hintText: 'Opcional',
+                            isDense: true,
+                          ),
                         ),
                       ),
                   ],
@@ -471,6 +434,32 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
               onFinish: _finishWorkout,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showTipsSheet(WorkoutExercise exercise) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Dicas',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 12),
+              _TipsPanel(exercise: exercise),
+            ],
+          ),
         ),
       ),
     );
@@ -510,8 +499,6 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
       _currentSet = nextSet;
       _isResting = false;
       _restSecondsRemaining = 0;
-      _showAdjust = false;
-      _showTips = false;
     });
     _updateExerciseNotification();
   }
@@ -1007,87 +994,125 @@ class _ExerciseSwitcherSheet extends StatelessWidget {
   }
 }
 
-// ─── Adjust panel ─────────────────────────────────────────────────────────────
+// ─── Set steppers (always visible above Feito) ────────────────────────────────
 
-class _AdjustPanel extends StatelessWidget {
-  const _AdjustPanel({
+class _SetSteppers extends StatelessWidget {
+  const _SetSteppers({
+    required this.reps,
+    required this.load,
+    required this.loadLabel,
     required this.onRepsDelta,
     required this.onLoadDelta,
-    required this.repsController,
-    required this.loadController,
-    required this.onChanged,
   });
 
+  final int reps;
+  final double load;
+  final String loadLabel;
   final void Function(int delta) onRepsDelta;
   final void Function(double delta) onLoadDelta;
-  final TextEditingController repsController;
-  final TextEditingController loadController;
-  final VoidCallback onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                const Expanded(child: Text('Reps')),
-                IconButton(
-                  onPressed: () => onRepsDelta(-1),
-                  icon: const Icon(Icons.remove_circle_outline),
-                ),
-                SizedBox(
-                  width: 56,
-                  child: TextField(
-                    controller: repsController,
-                    textAlign: TextAlign.center,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (_) => onChanged(),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => onRepsDelta(1),
-                  icon: const Icon(Icons.add_circle_outline),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Expanded(child: Text('Carga (kg)')),
-                IconButton(
-                  onPressed: () => onLoadDelta(-2.5),
-                  icon: const Icon(Icons.remove_circle_outline),
-                ),
-                SizedBox(
-                  width: 72,
-                  child: TextField(
-                    controller: loadController,
-                    textAlign: TextAlign.center,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (_) => onChanged(),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => onLoadDelta(2.5),
-                  icon: const Icon(Icons.add_circle_outline),
-                ),
-              ],
-            ),
-          ],
-        ),
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(20),
       ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _StepperRow(
+            label: 'Reps',
+            value: '$reps',
+            onMinus: () => onRepsDelta(-1),
+            onPlus: () => onRepsDelta(1),
+            valueStyle: textTheme.displaySmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              height: 1,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Divider(height: 1, color: colorScheme.outlineVariant),
+          ),
+          _StepperRow(
+            label: 'Carga',
+            value: loadLabel,
+            onMinus: () => onLoadDelta(-2.5),
+            onPlus: () => onLoadDelta(2.5),
+            valueStyle: textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              height: 1,
+              color: load > 0
+                  ? colorScheme.onSurface
+                  : colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepperRow extends StatelessWidget {
+  const _StepperRow({
+    required this.label,
+    required this.value,
+    required this.onMinus,
+    required this.onPlus,
+    this.valueStyle,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback onMinus;
+  final VoidCallback onPlus;
+  final TextStyle? valueStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        SizedBox(
+          width: 56,
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+        ),
+        IconButton.filledTonal(
+          onPressed: onMinus,
+          icon: const Icon(Icons.remove, size: 28),
+          style: IconButton.styleFrom(
+            minimumSize: const Size(56, 56),
+            fixedSize: const Size(56, 56),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.center,
+            style: valueStyle,
+          ),
+        ),
+        IconButton.filledTonal(
+          onPressed: onPlus,
+          icon: const Icon(Icons.add, size: 28),
+          style: IconButton.styleFrom(
+            minimumSize: const Size(56, 56),
+            fixedSize: const Size(56, 56),
+          ),
+        ),
+      ],
     );
   }
 }
