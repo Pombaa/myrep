@@ -40,11 +40,12 @@
             </intent-filter>
         </activity>
         
-        <!-- Foreground Service para treino -->
+        <!-- Foreground Service para treino (continua o descanso fora do app) -->
         <service
             android:name=".WorkoutForegroundService"
             android:enabled="true"
             android:exported="false"
+            android:stopWithTask="false"
             android:foregroundServiceType="mediaPlayback|health" />
         
         <!-- Don't delete the meta-data below.

@@ -26,7 +26,8 @@ class WorkoutSessionScreen extends ConsumerStatefulWidget {
       _WorkoutSessionScreenState();
 }
 
-class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
+class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
+    with WidgetsBindingObserver {
   late final List<TextEditingController> _loadControllers;
   late final List<TextEditingController> _repsControllers;
   final _notesController = TextEditingController();
@@ -38,6 +39,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
   bool _showNotes = false;
 
   int _restSecondsRemaining = 0;
+  DateTime? _restEndsAt;
   Timer? _restUiTimer;
 
   final Map<int, List<WorkoutSet>> _recordedSets = {};
@@ -55,6 +57,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadControllers = _exercises
         .map((e) => TextEditingController(
               text: e.suggestedLoad != null
@@ -72,6 +75,17 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
         _prefetchLastLoads();
       }
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _syncRestFromWallClock();
+    } else if (state == AppLifecycleState.paused) {
+      // Re-assert native countdown so the shade/lock screen stays accurate
+      // even if the OEM throttled the Flutter isolate.
+      _reassertNativeRestOnBackground();
+    }
   }
 
   Future<void> _prefetchLastLoads() async {
@@ -119,6 +133,11 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
   }
 
   Future<void> _initializeForegroundService() async {
+    // Android 13+: ensure shade / lock-screen notification is allowed.
+    try {
+      await ref.read(notificationServiceProvider).requestPermissions();
+    } catch (_) {}
+
     final foregroundService = ref.read(workoutForegroundServiceProvider);
     foregroundService.onCompleteSet = _completeSet;
     foregroundService.onStopRest = _stopRest;
@@ -138,6 +157,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
   void _stopRest() {
     _restUiTimer?.cancel();
     _restUiTimer = null;
+    _restEndsAt = null;
     if (mounted) {
       setState(() {
         _isResting = false;
@@ -153,35 +173,59 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
     ref.read(workoutForegroundServiceProvider).stopRestTimer();
   }
 
+  /// Wall-clock rest: survives app backgrounding (Timer.periodic alone does not).
   void _startLocalRestCountdown(int seconds) {
     _restUiTimer?.cancel();
+    _restEndsAt = DateTime.now().add(Duration(seconds: seconds));
     setState(() {
       _isResting = true;
       _restSecondsRemaining = seconds;
     });
-    _restUiTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      if (_restSecondsRemaining <= 1) {
-        timer.cancel();
-        _restUiTimer = null;
-        setState(() {
-          _isResting = false;
-          _restSecondsRemaining = 0;
-        });
-        // Keep native notif in sync if UI timer wins the race.
-        ref.read(workoutForegroundServiceProvider).stopRestTimer();
-        _updateExerciseNotification();
-      } else {
-        setState(() => _restSecondsRemaining--);
-      }
+    _restUiTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _syncRestFromWallClock();
     });
+  }
+
+  void _syncRestFromWallClock() {
+    if (!_isResting || _restEndsAt == null) return;
+    final remaining = _restEndsAt!.difference(DateTime.now()).inSeconds;
+    if (remaining <= 0) {
+      _restUiTimer?.cancel();
+      _restUiTimer = null;
+      _restEndsAt = null;
+      if (!mounted) return;
+      setState(() {
+        _isResting = false;
+        _restSecondsRemaining = 0;
+      });
+      // Native service owns the alarm / onRestComplete — do not stopRestTimer here.
+    } else if (mounted && remaining != _restSecondsRemaining) {
+      setState(() => _restSecondsRemaining = remaining);
+    }
+  }
+
+  Future<void> _reassertNativeRestOnBackground() async {
+    if (!_isResting || _restEndsAt == null) {
+      _updateExerciseNotification();
+      return;
+    }
+    final remaining = _restEndsAt!.difference(DateTime.now()).inSeconds;
+    if (remaining <= 0) {
+      _syncRestFromWallClock();
+      return;
+    }
+    final exercise = _currentExercise;
+    await ref.read(workoutForegroundServiceProvider).startRestTimer(
+          seconds: remaining,
+          exerciseName: _displayName(_currentExerciseIndex),
+          currentSet: _currentSet,
+          totalSets: exercise.series,
+        );
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _restUiTimer?.cancel();
     ref.read(workoutForegroundServiceProvider).stopService();
     for (final c in _loadControllers) {

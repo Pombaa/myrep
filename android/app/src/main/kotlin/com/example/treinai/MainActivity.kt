@@ -8,20 +8,20 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.treinai/workout_service"
-    
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        
+
         val methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
         WorkoutForegroundService.methodChannel = methodChannel
-        
+
         methodChannel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "startService" -> {
                     val title = call.argument<String>("title") ?: "Treino em andamento"
                     val content = call.argument<String>("content") ?: ""
                     val isResting = call.argument<Boolean>("isResting") ?: false
-                    
+
                     startWorkoutService(title, content, isResting)
                     result.success(null)
                 }
@@ -33,7 +33,7 @@ class MainActivity : FlutterActivity() {
                     val title = call.argument<String>("title") ?: "Treino em andamento"
                     val content = call.argument<String>("content") ?: ""
                     val isResting = call.argument<Boolean>("isResting") ?: false
-                    
+
                     updateWorkoutNotification(title, content, isResting)
                     result.success(null)
                 }
@@ -42,7 +42,7 @@ class MainActivity : FlutterActivity() {
                     val exerciseName = call.argument<String>("exerciseName") ?: "Exercício"
                     val currentSet = call.argument<Int>("currentSet") ?: 1
                     val totalSets = call.argument<Int>("totalSets") ?: 3
-                    
+
                     startRestTimer(seconds, exerciseName, currentSet, totalSets)
                     result.success(null)
                 }
@@ -54,7 +54,15 @@ class MainActivity : FlutterActivity() {
             }
         }
     }
-    
+
+    private fun launchService(intent: Intent) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+
     private fun startWorkoutService(title: String, content: String, isResting: Boolean) {
         val intent = Intent(this, WorkoutForegroundService::class.java).apply {
             action = WorkoutForegroundService.ACTION_START
@@ -62,24 +70,17 @@ class MainActivity : FlutterActivity() {
             putExtra("content", content)
             putExtra("isResting", isResting)
         }
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
-        
-        // Atualiza a notificação com o conteúdo inicial
-        updateWorkoutNotification(title, content, isResting)
+        launchService(intent)
     }
-    
+
     private fun stopWorkoutService() {
         val intent = Intent(this, WorkoutForegroundService::class.java).apply {
             action = WorkoutForegroundService.ACTION_STOP
         }
+        // stop does not need FGS promotion
         startService(intent)
     }
-    
+
     private fun updateWorkoutNotification(title: String, content: String, isResting: Boolean) {
         val intent = Intent(this, WorkoutForegroundService::class.java).apply {
             action = WorkoutForegroundService.ACTION_UPDATE
@@ -87,9 +88,9 @@ class MainActivity : FlutterActivity() {
             putExtra("content", content)
             putExtra("isResting", isResting)
         }
-        startService(intent)
+        launchService(intent)
     }
-    
+
     private fun startRestTimer(seconds: Int, exerciseName: String, currentSet: Int, totalSets: Int) {
         val intent = Intent(this, WorkoutForegroundService::class.java).apply {
             action = WorkoutForegroundService.ACTION_START_REST
@@ -98,7 +99,7 @@ class MainActivity : FlutterActivity() {
             putExtra("currentSet", currentSet)
             putExtra("totalSets", totalSets)
         }
-        startService(intent)
+        launchService(intent)
     }
 
     private fun stopRestTimer() {
