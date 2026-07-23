@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/utils/workout_day_matcher.dart';
 import '../../models/workout_plan.dart';
 import '../../providers/workout_providers.dart';
 import 'import_workout_screen.dart';
@@ -36,7 +37,8 @@ class WorkoutPlanTab extends ConsumerWidget {
     final planState = ref.watch(workoutPlanProvider);
 
     return planState.when(
-      data: (plan) => plan == null ? _buildNoPlan(context) : _buildPlanView(context, plan, ref),
+      data: (plan) =>
+          plan == null ? _buildNoPlan(context) : _buildPlanView(context, plan, ref),
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, _) => _buildError(context, error.toString(), ref),
     );
@@ -44,44 +46,49 @@ class WorkoutPlanTab extends ConsumerWidget {
 
   Widget _buildNoPlan(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(24, 40, 24, 32),
       children: [
-        const SizedBox(height: 32),
-        Icon(Icons.fitness_center, size: 72, color: colorScheme.primary.withOpacity(0.4)),
+        Icon(
+          Icons.fitness_center_rounded,
+          size: 56,
+          color: colorScheme.primary.withValues(alpha: 0.45),
+        ),
         const SizedBox(height: 20),
         Text(
-          'Nenhum plano de treino',
-          style: Theme.of(context).textTheme.headlineSmall,
+          'Monte seu treino',
+          style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         Text(
-          'Crie seu treino manualmente ou deixe a IA montar um plano personalizado para você.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
+          'Importe um JSON, digite a ficha ou peça pra IA montar.',
+          style: textTheme.bodyMedium?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 32),
-        _ManualEntryButton(onTap: () => _openManualEntry(context)),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
+        FilledButton.icon(
           icon: const Icon(Icons.upload_file_outlined),
-          label: const Text('Importar treino (JSON)'),
+          label: const Text('Importar JSON'),
           onPressed: () => _openImport(context),
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(48),
-          ),
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         OutlinedButton.icon(
-          icon: const Icon(Icons.psychology),
+          icon: const Icon(Icons.edit_note),
+          label: const Text('Criar manualmente'),
+          onPressed: () => _openManualEntry(context),
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+        ),
+        const SizedBox(height: 10),
+        TextButton.icon(
+          icon: const Icon(Icons.psychology_outlined),
           label: const Text('Criar com Treinador IA'),
           onPressed: onOpenTrainer,
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(48),
-          ),
         ),
       ],
     );
@@ -92,12 +99,19 @@ class WorkoutPlanTab extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Excluir treino?'),
-        content: const Text('O plano atual será removido. Você pode criar um novo a qualquer momento.'),
+        content: const Text(
+          'O plano atual será removido. Você pode criar um novo a qualquer momento.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
             child: const Text('Excluir'),
           ),
         ],
@@ -122,203 +136,151 @@ class WorkoutPlanTab extends ConsumerWidget {
     );
   }
 
+  void _startDay(BuildContext context, WorkoutDay day, WorkoutPlan plan) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => WorkoutSessionScreen(day: day, plan: plan),
+      ),
+    );
+  }
+
   Widget _buildPlanView(BuildContext context, WorkoutPlan plan, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final todayDay = findPlanDayForDate(plan);
+    final trainingDays =
+        plan.days.where((d) => d.exercises.isNotEmpty).length;
+
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                plan.source == 'manual' ? 'Treino manual' : 'Seu Plano',
-                                style: Theme.of(context).textTheme.titleLarge,
-                              ),
-                              const SizedBox(width: 8),
-                              _SourceChip(source: plan.source),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            plan.source == 'manual'
-                                ? 'Criado em ${DateFormat('dd/MM/yyyy').format(plan.generatedAt)}'
-                                : 'Gerado em ${DateFormat('dd/MM/yyyy').format(plan.generatedAt)}',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                    PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_vert),
-                      onSelected: (value) async {
-                        if (value == 'manual') _openManualEntry(context);
-                        if (value == 'import') _openImport(context);
-                        if (value == 'edit') _openManualEntry(context, basePlan: plan);
-                        if (value == 'refresh') ref.read(workoutPlanProvider.notifier).refresh();
-                        if (value == 'delete') await _confirmDeletePlan(context, ref);
-                      },
-                      itemBuilder: (_) => [
-                        const PopupMenuItem(
-                          value: 'manual',
-                          child: ListTile(
-                            leading: Icon(Icons.edit_note),
-                            title: Text('Inserir meu treino'),
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'import',
-                          child: ListTile(
-                            leading: Icon(Icons.upload_file_outlined),
-                            title: Text('Importar JSON'),
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                        if (plan.source == 'manual')
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: ListTile(
-                              leading: Icon(Icons.edit),
-                              title: Text('Editar treino'),
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ),
-                        const PopupMenuItem(
-                          value: 'refresh',
-                          child: ListTile(
-                            leading: Icon(Icons.refresh),
-                            title: Text('Atualizar'),
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: ListTile(
-                            leading: Icon(Icons.delete_outline, color: Colors.red),
-                            title: Text('Excluir treino', style: TextStyle(color: Colors.red)),
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                if (_buildPlanInfo(plan).isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _buildPlanInfo(plan),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                _ManualEntryButton(onTap: () => _openManualEntry(context)),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        for (final day in plan.days)
-          Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+        // Slim header
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      CircleAvatar(
-                        child: Text(_abbreviateDayLabel(day.dayLabel)),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${_abbreviateDayLabel(day.dayLabel)} · ${day.muscleGroup}',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                            Text(
-                              day.exercises.isEmpty
-                                  ? 'Descanso'
-                                  : '${day.exercises.length} exercícios',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                            ),
-                          ],
+                      Text(
+                        'Seu treino',
+                        style: textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      _SourceChip(source: plan.source),
                     ],
                   ),
-                  if (day.exercises.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    FilledButton.icon(
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('Iniciar'),
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                WorkoutSessionScreen(day: day, plan: plan),
-                          ),
-                        );
-                      },
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
-                      ),
+                  const SizedBox(height: 4),
+                  Text(
+                    [
+                      '$trainingDays dias de treino',
+                      DateFormat('dd/MM/yyyy').format(plan.generatedAt),
+                      if (_buildPlanInfo(plan).isNotEmpty) _buildPlanInfo(plan),
+                    ].where((e) => e.isNotEmpty).join(' · '),
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
                     ),
-                    Theme(
-                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                      child: ExpansionTile(
-                        tilePadding: EdgeInsets.zero,
-                        childrenPadding: EdgeInsets.zero,
-                        title: Text(
-                          'Ver exercícios',
-                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                color: colorScheme.primary,
-                              ),
-                        ),
-                        children: [
-                          for (var index = 0; index < day.exercises.length; index++)
-                            ListTile(
-                              dense: true,
-                              contentPadding: EdgeInsets.zero,
-                              leading: Text(
-                                '${index + 1}',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                      color: colorScheme.primary,
-                                    ),
-                              ),
-                              title: Text(day.exercises[index].name),
-                              subtitle: Text(
-                                '${day.exercises[index].series}×${day.exercises[index].repetitions}',
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 ],
               ),
             ),
+            PopupMenuButton<String>(
+              tooltip: 'Opções',
+              onSelected: (value) async {
+                if (value == 'manual') _openManualEntry(context);
+                if (value == 'import') _openImport(context);
+                if (value == 'edit') {
+                  _openManualEntry(context, basePlan: plan);
+                }
+                if (value == 'trainer') onOpenTrainer?.call();
+                if (value == 'refresh') {
+                  ref.read(workoutPlanProvider.notifier).refresh();
+                }
+                if (value == 'delete') {
+                  await _confirmDeletePlan(context, ref);
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'import',
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.upload_file_outlined),
+                    title: Text('Importar JSON'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'manual',
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.edit_note),
+                    title: Text('Criar outro treino'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                if (plan.source == 'manual')
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.edit_outlined),
+                      title: Text('Editar treino'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                const PopupMenuItem(
+                  value: 'trainer',
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.psychology_outlined),
+                    title: Text('Treinador IA'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'refresh',
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.refresh),
+                    title: Text('Atualizar'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.delete_outline, color: Colors.red),
+                    title: Text(
+                      'Excluir',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // Day cards — today first visually (keep plan order, highlight today)
+        for (final day in plan.days) ...[
+          _DayCard(
+            day: day,
+            abbreviate: _abbreviateDayLabel,
+            isToday: todayDay != null && day.dayLabel == todayDay.dayLabel,
+            onStart: day.exercises.isEmpty
+                ? null
+                : () => _startDay(context, day, plan),
           ),
+          const SizedBox(height: 10),
+        ],
       ],
     );
   }
@@ -330,7 +292,11 @@ class WorkoutPlanTab extends ConsumerWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+            Icon(
+              Icons.error_outline,
+              size: 48,
+              color: Theme.of(context).colorScheme.error,
+            ),
             const SizedBox(height: 16),
             Text(
               'Erro ao carregar plano',
@@ -340,7 +306,8 @@ class WorkoutPlanTab extends ConsumerWidget {
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: () => ref.read(workoutPlanProvider.notifier).refresh(),
+              onPressed: () =>
+                  ref.read(workoutPlanProvider.notifier).refresh(),
               child: const Text('Tentar novamente'),
             ),
           ],
@@ -352,65 +319,206 @@ class WorkoutPlanTab extends ConsumerWidget {
   String _buildPlanInfo(WorkoutPlan plan) {
     final parts = <String>[];
     if (plan.focus != null && plan.focus!.isNotEmpty) {
-      parts.add('Foco: ${plan.focus}');
-    }
-    if (plan.objective.isNotEmpty) {
-      parts.add('Objetivo: ${plan.objective}');
-    }
-    if (plan.desiredDays != null) {
-      parts.add('${plan.desiredDays} dias/semana');
+      parts.add(plan.focus!);
     }
     if (plan.sessionDurationMinutes != null) {
-      parts.add('~${plan.sessionDurationMinutes} min/treino');
+      parts.add('~${plan.sessionDurationMinutes} min');
     }
-    return parts.join(' • ');
+    return parts.join(' · ');
   }
 }
 
-class _ManualEntryButton extends StatelessWidget {
-  const _ManualEntryButton({required this.onTap});
+class _DayCard extends StatefulWidget {
+  const _DayCard({
+    required this.day,
+    required this.abbreviate,
+    required this.isToday,
+    this.onStart,
+  });
 
-  final VoidCallback onTap;
+  final WorkoutDay day;
+  final String Function(String) abbreviate;
+  final bool isToday;
+  final VoidCallback? onStart;
+
+  @override
+  State<_DayCard> createState() => _DayCardState();
+}
+
+class _DayCardState extends State<_DayCard> {
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+    final textTheme = Theme.of(context).textTheme;
+    final day = widget.day;
+    final isRest = day.exercises.isEmpty;
+    final abbr = widget.abbreviate(day.dayLabel);
+    final preview = day.exercises.take(3).map((e) => e.name).toList();
+    final extra = day.exercises.length - preview.length;
+
+    final bg = widget.isToday
+        ? colorScheme.primaryContainer.withValues(alpha: 0.55)
+        : colorScheme.surfaceContainerHighest.withValues(alpha: 0.45);
+    final border = widget.isToday
+        ? Border.all(color: colorScheme.primary.withValues(alpha: 0.45), width: 1.5)
+        : null;
+
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          border: Border.all(color: colorScheme.primary, width: 1.5),
-          borderRadius: BorderRadius.circular(12),
-          color: colorScheme.primaryContainer.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(16),
+          border: border,
         ),
-        child: Row(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Icon(Icons.edit_note, color: colorScheme.primary, size: 22),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Inserir meu treino',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.primary,
-                        ),
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: widget.isToday
+                        ? colorScheme.primary
+                        : colorScheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  Text(
-                    'Monte sua própria ficha de exercícios',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  child: Text(
+                    abbr,
+                    style: textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: widget.isToday
+                          ? colorScheme.onPrimary
+                          : colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              day.muscleGroup,
+                              style: textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          if (widget.isToday) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'Hoje',
+                                style: textTheme.labelSmall?.copyWith(
+                                  color: colorScheme.onPrimary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isRest
+                            ? '${day.dayLabel} · Descanso'
+                            : '${day.dayLabel} · ${day.exercises.length} exercícios',
+                        style: textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            Icon(Icons.arrow_forward_ios, size: 14, color: colorScheme.primary),
+
+            if (!isRest) ...[
+              const SizedBox(height: 12),
+              // Exercise preview (always visible — less expand needed)
+              ...[
+                for (final name in preview)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '· $name',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                if (extra > 0 && !_expanded)
+                  Text(
+                    '+$extra mais',
+                    style: textTheme.labelMedium?.copyWith(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
+              if (_expanded)
+                for (var i = 3; i < day.exercises.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '· ${day.exercises[i].name}  ·  ${day.exercises[i].series}×${day.exercises[i].repetitions}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+              if (day.exercises.length > 3)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () => setState(() => _expanded = !_expanded),
+                    child: Text(_expanded ? 'Ver menos' : 'Ver todos'),
+                  ),
+                ),
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: Text(widget.isToday ? 'Iniciar treino de hoje' : 'Iniciar'),
+                onPressed: widget.onStart,
+                style: FilledButton.styleFrom(
+                  minimumSize: Size.fromHeight(widget.isToday ? 52 : 46),
+                ),
+              ),
+            ] else ...[
+              const SizedBox(height: 8),
+              Text(
+                'Recuperação — sem exercícios hoje.',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -425,27 +533,24 @@ class _SourceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (source == 'ai') return const SizedBox.shrink();
     final colorScheme = Theme.of(context).colorScheme;
-    final label = source == 'manual' ? 'Manual' : 'Auto';
-    final bg = source == 'manual'
-        ? colorScheme.tertiaryContainer
-        : colorScheme.secondaryContainer;
-    final fg = source == 'manual'
-        ? colorScheme.onTertiaryContainer
-        : colorScheme.onSecondaryContainer;
+    final label = switch (source) {
+      'manual' => 'Manual',
+      'ai' => 'IA',
+      _ => 'Auto',
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(10),
+        color: colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         label,
-        style: Theme.of(context)
-            .textTheme
-            .labelSmall
-            ?.copyWith(color: fg, fontWeight: FontWeight.bold),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: colorScheme.onSecondaryContainer,
+              fontWeight: FontWeight.w700,
+            ),
       ),
     );
   }

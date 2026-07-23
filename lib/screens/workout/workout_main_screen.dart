@@ -29,18 +29,12 @@ class _WorkoutMainScreenState extends State<WorkoutMainScreen> with SingleTicker
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Treino'),
+        title: const Text('Treinos'),
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(
-              icon: Icon(Icons.fitness_center),
-              text: 'Treino',
-            ),
-            Tab(
-              icon: Icon(Icons.psychology),
-              text: 'Treinador IA',
-            ),
+            Tab(text: 'Plano'),
+            Tab(text: 'Treinador IA'),
           ],
         ),
       ),
