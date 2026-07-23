@@ -267,11 +267,27 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
         exercise.notes != null;
 
     return Scaffold(
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        title: Text('${widget.day.dayLabel} · ${widget.day.muscleGroup}'),
+        titleSpacing: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.day.muscleGroup,
+              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            Text(
+              '${widget.day.dayLabel} · Ex ${_currentExerciseIndex + 1}/${_exercises.length}',
+              style: textTheme.labelSmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.list_alt),
+            icon: const Icon(Icons.list_alt_rounded),
             tooltip: 'Trocar exercício',
             onPressed: _openExerciseSwitcher,
           ),
@@ -301,105 +317,133 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-              child: _ProgressBar(
-                current: _currentExerciseIndex,
-                total: _exercises.length,
-                currentSet: _currentSet,
-                totalSets: exercise.series,
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(99),
+                child: LinearProgressIndicator(
+                  value: ((_currentExerciseIndex +
+                              (_currentSet / exercise.series)) /
+                          _exercises.length)
+                      .clamp(0.0, 1.0),
+                  minHeight: 5,
+                  backgroundColor: colorScheme.surfaceContainerHighest,
+                ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _displayName(_currentExerciseIndex),
-                          style: textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            height: 1.2,
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 16, 12, 14),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.45),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _displayName(_currentExerciseIndex),
+                            style: textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              height: 1.2,
+                            ),
                           ),
+                        ),
+                        if (hasSubstitute)
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            icon: Icon(
+                              isUsingSubstitute
+                                  ? Icons.swap_horiz
+                                  : Icons.swap_horiz_outlined,
+                              color: isUsingSubstitute
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurfaceVariant,
+                            ),
+                            tooltip: isUsingSubstitute
+                                ? 'Voltar ao original'
+                                : 'Usar substituto',
+                            onPressed: () {
+                              ref
+                                  .read(exerciseSelectionProvider.notifier)
+                                  .toggleExercise(0, _currentExerciseIndex);
+                              setState(() {});
+                            },
+                          ),
+                      ],
+                    ),
+                    if (isUsingSubstitute && hasSubstitute) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Substituto de ${exercise.name}',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      if (hasSubstitute)
-                        IconButton(
-                          icon: Icon(
-                            isUsingSubstitute
-                                ? Icons.swap_horiz
-                                : Icons.swap_horiz_outlined,
-                            color: isUsingSubstitute
-                                ? colorScheme.primary
-                                : null,
-                          ),
-                          tooltip: isUsingSubstitute
-                              ? 'Voltar ao original'
-                              : 'Usar substituto',
-                          onPressed: () {
-                            ref
-                                .read(exerciseSelectionProvider.notifier)
-                                .toggleExercise(0, _currentExerciseIndex);
-                            setState(() {});
-                          },
-                        ),
                     ],
-                  ),
-                  if (isUsingSubstitute && hasSubstitute) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Substituto de ${exercise.name}',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                    const SizedBox(height: 14),
+                    _SetDots(
+                      total: exercise.series,
+                      current: _currentSet,
+                      completed: recorded.length,
+                      resting: _isResting,
                     ),
-                  ],
-                  const SizedBox(height: 10),
-                  Text(
-                    'Série $_currentSet de ${exercise.series}',
-                    style: textTheme.titleMedium?.copyWith(
-                      color: colorScheme.primary,
-                      fontWeight: FontWeight.w600,
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Text(
+                          _isResting
+                              ? 'Descanso antes da série $_currentSet'
+                              : 'Série $_currentSet de ${exercise.series}',
+                          style: textTheme.labelLarge?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (hasTips)
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                            ),
+                            onPressed: () => _showTipsSheet(exercise),
+                            icon: const Icon(Icons.lightbulb_outline, size: 16),
+                            label: const Text('Dicas'),
+                          ),
+                      ],
                     ),
-                  ),
-                  if (hasTips) ...[
-                    const SizedBox(height: 4),
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        visualDensity: VisualDensity.compact,
-                        foregroundColor: colorScheme.primary,
-                      ),
-                      onPressed: () => _showTipsSheet(exercise),
-                      child: const Text('Ver dicas'),
-                    ),
+                    if (recorded.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      _RecordedSetsChips(sets: recorded),
+                    ],
                   ],
-                  if (recorded.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    _RecordedSetsChips(sets: recorded),
-                  ],
-                ],
+                ),
               ),
             ),
-            // Hero zone: steppers centered in remaining space
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   children: [
                     const Spacer(flex: 2),
-                    _SetSteppers(
-                      reps: _currentReps(),
-                      load: _currentLoad(),
-                      loadLabel: _currentLoad() > 0
-                          ? '${_formatLoad(_currentLoad())} kg'
-                          : 'sem carga',
-                      onRepsDelta: _nudgeReps,
-                      onLoadDelta: _nudgeLoad,
-                    ),
+                    if (_isResting)
+                      _RestHero(seconds: _restSecondsRemaining)
+                    else
+                      _SetSteppers(
+                        reps: _currentReps(),
+                        load: _currentLoad(),
+                        loadLabel: _currentLoad() > 0
+                            ? '${_formatLoad(_currentLoad())} kg'
+                            : '— kg',
+                        onRepsDelta: _nudgeReps,
+                        onLoadDelta: _nudgeLoad,
+                      ),
                     const Spacer(flex: 3),
                     if (_showNotes)
                       Padding(
@@ -407,10 +451,17 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
                         child: TextField(
                           controller: _notesController,
                           maxLines: 2,
-                          decoration: const InputDecoration(
-                            labelText: 'Observações do treino',
+                          decoration: InputDecoration(
+                            labelText: 'Observações',
                             hintText: 'Opcional',
                             isDense: true,
+                            filled: true,
+                            fillColor: colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.4),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
                           ),
                         ),
                       ),
@@ -420,7 +471,6 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
             ),
             _BottomActionBar(
               isResting: _isResting,
-              restSeconds: _restSecondsRemaining,
               isDone: _isCurrentDone,
               isSaving: _isSaving,
               currentSet: _currentSet,
@@ -767,7 +817,6 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
 class _BottomActionBar extends StatelessWidget {
   const _BottomActionBar({
     required this.isResting,
-    required this.restSeconds,
     required this.isDone,
     required this.isSaving,
     required this.currentSet,
@@ -781,7 +830,6 @@ class _BottomActionBar extends StatelessWidget {
   });
 
   final bool isResting;
-  final int restSeconds;
   final bool isDone;
   final bool isSaving;
   final int currentSet;
@@ -799,34 +847,20 @@ class _BottomActionBar extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Material(
-      elevation: 8,
-      color: colorScheme.surface,
+      color: colorScheme.surfaceContainerLow,
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (isResting) ...[
-                Text(
-                  'Descanso',
-                  style: textTheme.labelLarge?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                Text(
-                  _formatTime(restSeconds),
-                  style: textTheme.displayMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 8),
+                // Rest countdown lives in center; footer only skips.
                 SizedBox(
                   width: double.infinity,
                   height: 56,
-                  child: FilledButton(
+                  child: FilledButton.tonal(
                     onPressed: onSkipRest,
                     child: const Text('Pular descanso'),
                   ),
@@ -840,7 +874,9 @@ class _BottomActionBar extends StatelessWidget {
                         ? null
                         : (isLastExercise ? onFinish : onSkipExercise),
                     icon: Icon(
-                      isLastExercise ? Icons.check_circle : Icons.skip_next,
+                      isLastExercise
+                          ? Icons.check_circle_rounded
+                          : Icons.skip_next_rounded,
                     ),
                     label: Text(
                       isSaving
@@ -854,51 +890,55 @@ class _BottomActionBar extends StatelessWidget {
               ] else ...[
                 SizedBox(
                   width: double.infinity,
-                  height: 64,
+                  height: 60,
                   child: FilledButton(
                     onPressed: isSaving ? null : onDone,
                     style: FilledButton.styleFrom(
-                      textStyle: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      textStyle: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     child: Text('Feito · Série $currentSet/$totalSets'),
                   ),
                 ),
               ],
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: onSwitch,
-                      child: const Text('Trocar'),
-                    ),
-                  ),
-                  Expanded(
-                    child: TextButton(
-                      onPressed: isLastExercise ? onFinish : onSkipExercise,
-                      child: Text(
-                        isLastExercise ? 'Finalizar' : 'Pular exercício',
+              if (!isResting) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: onSwitch,
+                        icon: const Icon(Icons.list_alt_rounded, size: 18),
+                        label: const Text('Trocar'),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed:
+                            isLastExercise ? onFinish : onSkipExercise,
+                        icon: Icon(
+                          isLastExercise
+                              ? Icons.flag_outlined
+                              : Icons.skip_next_rounded,
+                          size: 18,
+                        ),
+                        label: Text(
+                          isLastExercise ? 'Finalizar' : 'Pular',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
-  }
-
-  String _formatTime(int seconds) {
-    final m = seconds ~/ 60;
-    final s = seconds % 60;
-    if (m > 0) {
-      return '$m:${s.toString().padLeft(2, '0')}';
-    }
-    return '${s}s';
   }
 }
 
@@ -989,6 +1029,100 @@ class _ExerciseSwitcherSheet extends StatelessWidget {
             const SizedBox(height: 8),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── Set progress dots ────────────────────────────────────────────────────────
+
+class _SetDots extends StatelessWidget {
+  const _SetDots({
+    required this.total,
+    required this.current,
+    required this.completed,
+    required this.resting,
+  });
+
+  final int total;
+  final int current;
+  final int completed;
+  final bool resting;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        for (var i = 1; i <= total; i++) ...[
+          if (i > 1) const SizedBox(width: 8),
+          Expanded(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              height: 8,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(99),
+                color: i <= completed
+                    ? colorScheme.primary
+                    : (i == current && !resting
+                        ? colorScheme.primary.withValues(alpha: 0.45)
+                        : colorScheme.outlineVariant.withValues(alpha: 0.5)),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _RestHero extends StatelessWidget {
+  const _RestHero({required this.seconds});
+
+  final int seconds;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    final label = m > 0 ? '$m:${s.toString().padLeft(2, '0')}' : '${s}s';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Descanso',
+            style: textTheme.titleMedium?.copyWith(
+              color: colorScheme.onPrimaryContainer,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: textTheme.displayLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: colorScheme.primary,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Respira. A próxima série vem aí.',
+            style: textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1193,60 +1327,6 @@ class _TipLine extends StatelessWidget {
 }
 
 // ─── Shared small widgets ─────────────────────────────────────────────────────
-
-class _ProgressBar extends StatelessWidget {
-  const _ProgressBar({
-    required this.current,
-    required this.total,
-    required this.currentSet,
-    required this.totalSets,
-  });
-
-  final int current;
-  final int total;
-  final int currentSet;
-  final int totalSets;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final progress =
-        total > 0 ? (current + (currentSet / totalSets)) / total : 0.0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Ex ${current + 1}/$total · Série $currentSet/$totalSets',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-            Text(
-              '${(progress * 100).round()}%',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: progress.clamp(0.0, 1.0),
-            minHeight: 6,
-            backgroundColor: colorScheme.outlineVariant,
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 class _RecordedSetsChips extends StatelessWidget {
   const _RecordedSetsChips({required this.sets});
