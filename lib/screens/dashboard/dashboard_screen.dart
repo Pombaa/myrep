@@ -12,6 +12,7 @@ import '../../providers/progress_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../providers/workout_providers.dart';
 import '../assessment/body_assessment_screen.dart';
+import '../workout/one_off_workout_screen.dart';
 import '../workout/workout_session_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -212,6 +213,16 @@ class _TodayWorkoutCard extends StatelessWidget {
                 },
               ),
             ],
+            const SizedBox(height: 4),
+            TextButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const OneOffWorkoutScreen()),
+                );
+              },
+              icon: const Icon(Icons.bolt_rounded, size: 18),
+              label: const Text('Fazer treino avulso'),
+            ),
           ],
         ),
       ),

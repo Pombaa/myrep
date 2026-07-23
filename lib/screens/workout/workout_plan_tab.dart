@@ -7,6 +7,7 @@ import '../../models/workout_plan.dart';
 import '../../providers/workout_providers.dart';
 import 'import_workout_screen.dart';
 import 'manual_workout_entry_screen.dart';
+import 'one_off_workout_screen.dart';
 import 'workout_session_screen.dart';
 
 class WorkoutPlanTab extends ConsumerWidget {
@@ -76,6 +77,17 @@ class WorkoutPlanTab extends ConsumerWidget {
           label: const Text('Importar JSON'),
           onPressed: () => _openImport(context),
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.bolt_rounded),
+          label: const Text('Treino avulso (só agora)'),
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const OneOffWorkoutScreen()),
+            );
+          },
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
         ),
         const SizedBox(height: 10),
         OutlinedButton.icon(
@@ -268,6 +280,66 @@ class WorkoutPlanTab extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 20),
+
+        // One-off workout — does not touch the saved plan
+        Material(
+          color: colorScheme.tertiaryContainer.withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const OneOffWorkoutScreen()),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: colorScheme.tertiary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.bolt_rounded,
+                      color: colorScheme.onTertiary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Treino avulso',
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Só pra hoje — não altera o plano',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
 
         // Day cards — today first visually (keep plan order, highlight today)
         for (final day in plan.days) ...[
