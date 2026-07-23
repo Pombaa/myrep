@@ -74,7 +74,7 @@ class WorkoutPlanTab extends ConsumerWidget {
         const SizedBox(height: 32),
         FilledButton.icon(
           icon: const Icon(Icons.upload_file_outlined),
-          label: const Text('Importar JSON'),
+          label: const Text('Importar treino'),
           onPressed: () => _openImport(context),
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
         ),
@@ -222,7 +222,7 @@ class WorkoutPlanTab extends ConsumerWidget {
                   child: ListTile(
                     dense: true,
                     leading: Icon(Icons.upload_file_outlined),
-                    title: Text('Importar JSON'),
+                            title: Text('Importar treino'),
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),

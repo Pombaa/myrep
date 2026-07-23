@@ -134,6 +134,7 @@ class WorkoutPlanController extends StateNotifier<AsyncValue<WorkoutPlan?>> {
         baseUrl: aiProvider.baseUrl,
         model: aiProvider.defaultModel,
         useStructuredOutput: aiProvider.useStructuredOutput,
+        providerLabel: aiProvider.label,
       );
       final parsed = jsonDecode(result);
       List<dynamic> daysRaw;

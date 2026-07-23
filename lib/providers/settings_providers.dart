@@ -7,7 +7,9 @@ import 'repository_providers.dart';
 enum AiProvider { openai, nvidia }
 
 extension AiProviderX on AiProvider {
-  String get label => this == AiProvider.openai ? 'OpenAI' : 'NVIDIA (gratuito)';
+  String get label => this == AiProvider.openai ? 'OpenAI' : 'NVIDIA';
+  String get settingsLabel =>
+      this == AiProvider.openai ? 'OpenAI' : 'NVIDIA (gratuito)';
   String get baseUrl => this == AiProvider.openai
       ? 'https://api.openai.com/v1/chat/completions'
       : 'https://integrate.api.nvidia.com/v1/chat/completions';

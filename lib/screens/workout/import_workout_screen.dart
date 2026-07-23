@@ -66,6 +66,12 @@ class _ImportWorkoutScreenState extends ConsumerState<ImportWorkoutScreen> {
     return text.startsWith('[') || text.startsWith('{');
   }
 
+  bool get _canImportJsonLocally {
+    final text = _textController.text.trim();
+    if (!_looksLikeJson) return false;
+    return _tryParseLocalJson(text) != null;
+  }
+
   /// Parses native app JSON (or AI-style {treinos}) without calling the LLM.
   /// Returns null when the text is free-form and needs AI conversion.
   List<WorkoutDay>? _tryParseLocalJson(String text) {
@@ -161,6 +167,7 @@ class _ImportWorkoutScreenState extends ConsumerState<ImportWorkoutScreen> {
             : 'gpt-4o-mini',
         useStructuredOutput: false,
         temperature: 0.2,
+        providerLabel: aiProvider.label,
         messages: [
           {'role': 'system', 'content': _systemPrompt},
           {'role': 'user', 'content': text},
@@ -282,7 +289,8 @@ class _ImportWorkoutScreenState extends ConsumerState<ImportWorkoutScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Cole o JSON do app para importar na hora, ou texto livre do personal (WhatsApp, anotação…) — a IA só é usada no texto livre.',
+                      'Cole em qualquer formato: JSON do app, WhatsApp, lista de exercícios…\n'
+                      'JSON nativo importa na hora; texto livre a IA converte pro formato do app.',
                       style: textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSecondaryContainer),
                     ),
@@ -303,7 +311,8 @@ class _ImportWorkoutScreenState extends ConsumerState<ImportWorkoutScreen> {
             textCapitalization: TextCapitalization.sentences,
             decoration: InputDecoration(
               hintText:
-                  'Ex:\nTreino A – Peito\nSupino reto 4x10\nSupino inclinado 3x12\n...',
+                  'Qualquer formato — JSON, WhatsApp, lista…\n'
+                  'Ex:\nTreino A – Peito\nSupino reto 4x10\n…',
               alignLabelWithHint: true,
               filled: true,
               fillColor: colorScheme.surfaceContainerHighest,
@@ -358,12 +367,14 @@ class _ImportWorkoutScreenState extends ConsumerState<ImportWorkoutScreen> {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white),
                     )
-                  : Icon(_looksLikeJson
+                  : Icon(_canImportJsonLocally
                       ? Icons.data_object
                       : Icons.auto_awesome),
               label: Text(_isConverting
-                  ? (_looksLikeJson ? 'Importando...' : 'Convertendo...')
-                  : (_looksLikeJson ? 'Importar JSON' : 'Converter com IA')),
+                  ? 'Convertendo...'
+                  : (_canImportJsonLocally
+                      ? 'Importar JSON'
+                      : 'Converter com IA')),
               style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(48)),
             ),

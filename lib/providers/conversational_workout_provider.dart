@@ -107,6 +107,7 @@ class ConversationalWorkoutController extends StateNotifier<WorkoutPlanState> {
         model: aiProvider == AiProvider.nvidia ? aiProvider.defaultModel : 'gpt-4o',
         temperature: 0.5,
         useStructuredOutput: aiProvider.useStructuredOutput,
+        providerLabel: aiProvider.label,
       );
 
       final parsed = jsonDecode(result) as Map<String, dynamic>;
@@ -208,6 +209,7 @@ class ConversationalWorkoutController extends StateNotifier<WorkoutPlanState> {
         model: aiProvider == AiProvider.nvidia ? aiProvider.defaultModel : 'gpt-4o',
         temperature: 0.5,
         useStructuredOutput: aiProvider.useStructuredOutput,
+        providerLabel: aiProvider.label,
       );
 
       final parsed = jsonDecode(result) as Map<String, dynamic>;
