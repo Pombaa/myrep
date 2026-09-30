@@ -7,7 +7,7 @@ class OpenAiException implements Exception {
   final String message;
 
   @override
-  String toString() => 'OpenAiException: $message';
+  String toString() => message;
 }
 
 class OpenAiService {
@@ -143,9 +143,18 @@ class OpenAiService {
       if (response.statusCode != null &&
           response.statusCode! >= 400 &&
           response.statusCode! < 500) {
-        final apiMessage = response.data is Map<String, dynamic>
-            ? (response.data!['error']?['message'] as String?)
-            : null;
+        final data = response.data;
+        String? apiMessage;
+        if (data is Map<String, dynamic>) {
+          apiMessage = data['error']?['message'] as String? ??
+              data['detail'] as String?;
+        }
+        if (response.statusCode == 410) {
+          throw OpenAiException(
+            apiMessage ??
+                'Modelo da $providerLabel descontinuado. Atualize o app ou troque o modelo em Ajustes.',
+          );
+        }
         throw OpenAiException(
           apiMessage ??
               'Erro ${response.statusCode} na API $providerLabel. Verifique a chave e o modelo.',
