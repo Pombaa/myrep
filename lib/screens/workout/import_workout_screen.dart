@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/exercise_library.dart';
+import '../../core/utils/workout_text_parser.dart';
 import '../../models/workout_plan.dart';
 import '../../providers/services_providers.dart';
 import '../../providers/settings_providers.dart';
@@ -147,6 +147,13 @@ class _ImportWorkoutScreenState extends ConsumerState<ImportWorkoutScreen> {
         return;
       }
 
+      // Markdown / listas PT bem estruturadas — evita IA (timeout / JSON truncado).
+      final textDays = tryParseWorkoutText(text);
+      if (textDays != null && textDays.isNotEmpty) {
+        setState(() => _preview = textDays);
+        return;
+      }
+
       final aiProvider = ref.read(selectedAiProviderProvider);
       final apiKeyState = aiProvider == AiProvider.nvidia
           ? ref.read(nvidiaKeyProvider)
@@ -174,10 +181,20 @@ class _ImportWorkoutScreenState extends ConsumerState<ImportWorkoutScreen> {
         ],
       );
 
-      final decoded = jsonDecode(result) as Map<String, dynamic>;
-      final raw = decoded['treinos'];
-      final List<dynamic> workouts = raw is List ? raw : [decoded];
-      final days = workouts.map(_dayFromMap).toList();
+      final payload = extractJsonPayload(result) ?? result;
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map) {
+        throw Exception('A IA não retornou JSON no formato esperado.');
+      }
+      final map = Map<String, dynamic>.from(decoded);
+      final raw = map['treinos'] ?? map['treino'];
+      final List<dynamic> workouts = raw is List ? raw : [map];
+      if (workouts.isEmpty) {
+        throw Exception('A IA não retornou dias de treino.');
+      }
+      final days = workouts
+          .map((e) => workoutDayFromLooseMap(Map<String, dynamic>.from(e as Map)))
+          .toList();
 
       setState(() => _preview = days);
     } catch (e) {
@@ -188,40 +205,7 @@ class _ImportWorkoutScreenState extends ConsumerState<ImportWorkoutScreen> {
   }
 
   WorkoutDay _dayFromMap(dynamic raw) {
-    final map = raw as Map<String, dynamic>;
-    final exercisesRaw = map['exercicios'] as List<dynamic>? ?? [];
-
-    final exercises = exercisesRaw.map((e) {
-      final em = e as Map<String, dynamic>;
-
-      final repsRaw = em['repeticoes'];
-      int reps = 10;
-      if (repsRaw != null) {
-        final match = RegExp(r'\d+').firstMatch(repsRaw.toString());
-        if (match != null) reps = int.parse(match.group(0)!);
-      }
-
-      final seriesRaw = em['series'];
-      final series = seriesRaw != null ? (seriesRaw as num).toInt() : 3;
-      final obs = em['observacao'] as String?;
-
-      return WorkoutExercise(
-        name: em['nome'] as String,
-        series: series,
-        repetitions: reps,
-        notes: (obs != null && obs.isNotEmpty) ? obs : null,
-      );
-    }).toList();
-
-    final muscleGroup = exercises.isNotEmpty
-        ? (muscleGroupForExercise(exercises.first.name) ?? 'Misto')
-        : 'Misto';
-
-    return WorkoutDay(
-      dayLabel: map['nome'] as String,
-      muscleGroup: muscleGroup,
-      exercises: exercises,
-    );
+    return workoutDayFromLooseMap(Map<String, dynamic>.from(raw as Map));
   }
 
   Future<void> _save() async {
@@ -289,8 +273,8 @@ class _ImportWorkoutScreenState extends ConsumerState<ImportWorkoutScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Cole em qualquer formato: JSON do app, WhatsApp, lista de exercícios…\n'
-                      'JSON nativo importa na hora; texto livre a IA converte pro formato do app.',
+                      'Cole em qualquer formato: JSON do app, WhatsApp, plano em markdown…\n'
+                      'JSON e textos bem estruturados importam na hora; o resto a IA converte.',
                       style: textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSecondaryContainer),
                     ),

@@ -46,6 +46,8 @@ class OpenAiService {
 
       // Structured JSON schema is OpenAI-specific. NVIDIA and others often
       // hang or fail with response_format — rely on the prompt instead.
+      // When schema is off, still force JSON object on OpenAI so import/convert
+      // doesn't get prose/markdown that breaks jsonDecode.
       if (useStructuredOutput) {
         body['response_format'] = {
           'type': 'json_schema',
@@ -113,6 +115,18 @@ class OpenAiService {
             },
           },
         };
+      } else if (baseUrl.contains('api.openai.com')) {
+        body['response_format'] = {'type': 'json_object'};
+      }
+
+      final isNvidia = baseUrl.contains('integrate.api.nvidia.com');
+      // Nemotron defaults to reasoning traces; that pollutes JSON conversion.
+      if (isNvidia && model.contains('nemotron')) {
+        body['chat_template_kwargs'] = {'enable_thinking': false};
+        body['max_tokens'] = 16384;
+      } else {
+        // Large multi-day imports need headroom; older hosts often cap ~4k.
+        body['max_tokens'] = 8192;
       }
 
       final response = await _client.post<Map<String, dynamic>>(

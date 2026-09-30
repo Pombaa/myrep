@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/exercise_library.dart';
+import '../../core/utils/workout_text_parser.dart';
 import '../../models/workout_plan.dart';
 import '../../providers/services_providers.dart';
 import '../../providers/settings_providers.dart';
@@ -149,12 +149,19 @@ class _OneOffWorkoutScreenState extends ConsumerState<OneOffWorkoutScreen> {
 
       if (!mounted || requestId != _aiRequestId) return;
 
-      final decoded = jsonDecode(result) as Map<String, dynamic>;
-      final raw = decoded['treinos'];
-      final List<dynamic> workouts = raw is List ? raw : [decoded];
+      final payload = extractJsonPayload(result) ?? result;
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map) {
+        throw Exception('A IA não retornou JSON no formato esperado.');
+      }
+      final map = Map<String, dynamic>.from(decoded);
+      final raw = map['treinos'] ?? map['treino'];
+      final List<dynamic> workouts = raw is List ? raw : [map];
       if (workouts.isEmpty) throw Exception('A IA não retornou exercícios.');
 
-      final day = _dayFromAiMap(workouts.first);
+      final day = workoutDayFromLooseMap(
+        Map<String, dynamic>.from(workouts.first as Map),
+      );
       setState(() {
         _exercises = day.exercises;
         _parseHint = 'Convertido com IA';
@@ -180,57 +187,6 @@ class _OneOffWorkoutScreenState extends ConsumerState<OneOffWorkoutScreen> {
         _parseHint = _parseHint ?? 'Preview atual';
       }
     });
-  }
-
-  WorkoutDay _dayFromAiMap(dynamic raw) {
-    final map = raw as Map<String, dynamic>;
-    final exercisesRaw = map['exercicios'] as List<dynamic>? ?? [];
-
-    final exercises = exercisesRaw.map((e) {
-      final em = e as Map<String, dynamic>;
-
-      final repsRaw = em['repeticoes'];
-      int reps = 10;
-      String? rangeNote;
-      if (repsRaw != null) {
-        final str = repsRaw.toString();
-        final range = RegExp(r'(\d+)\s*[-–]\s*(\d+)').firstMatch(str);
-        if (range != null) {
-          reps = int.parse(range.group(1)!);
-          rangeNote = 'Faixa ${range.group(1)}–${range.group(2)}';
-        } else {
-          final match = RegExp(r'\d+').firstMatch(str);
-          if (match != null) reps = int.parse(match.group(0)!);
-        }
-      }
-
-      final seriesRaw = em['series'];
-      final series = seriesRaw != null ? (seriesRaw as num).toInt() : 3;
-      final obs = em['observacao'] as String?;
-      final notes = [
-        if (rangeNote != null) rangeNote,
-        if (obs != null && obs.isNotEmpty) obs,
-      ].join(' · ');
-
-      return WorkoutExercise(
-        name: em['nome'] as String,
-        series: series,
-        repetitions: reps,
-        notes: notes.isEmpty ? null : notes,
-      );
-    }).toList();
-
-    final muscleGroup = exercises.isNotEmpty
-        ? (muscleGroupForExercise(exercises.first.name) ??
-            _groupController.text.trim())
-        : _groupController.text.trim();
-
-    return WorkoutDay(
-      dayLabel: (map['nome'] as String?) ?? _titleController.text.trim(),
-      muscleGroup:
-          muscleGroup.isEmpty ? 'Recuperação' : muscleGroup,
-      exercises: exercises,
-    );
   }
 
   void _start() {

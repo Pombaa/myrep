@@ -140,7 +140,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                   ] else ...[
-                    const Text('Chave da API NVIDIA (gratuita em nvidia.com/ngc)'),
+                    const Text('Chave da API NVIDIA (gratuita em build.nvidia.com)'),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _nvidiaKeyController,
@@ -153,7 +153,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Modelo: meta/llama-3.3-70b-instruct',
+                      'Modelo: nvidia/nemotron-3.5-lightning-30b-a3b',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),

@@ -15,7 +15,7 @@ extension AiProviderX on AiProvider {
       : 'https://integrate.api.nvidia.com/v1/chat/completions';
   String get defaultModel => this == AiProvider.openai
       ? 'gpt-4o-mini'
-      : 'meta/llama-3.3-70b-instruct';
+      : 'nvidia/nemotron-3.5-lightning-30b-a3b';
   bool get useStructuredOutput => this == AiProvider.openai;
 }
 
