@@ -5,16 +5,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/muscle_summary.dart';
-import '../../models/exercise_progression_suggestion.dart';
 import '../../models/workout_plan.dart';
 import '../../models/workout_set.dart';
 import '../../providers/exercise_selection_provider.dart';
-import '../../providers/progression_provider.dart';
+import '../../services/progression_analyzer.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/services_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../providers/workout_providers.dart';
-import 'progression_suggestion_screen.dart';
 
 class WorkoutSessionScreen extends ConsumerStatefulWidget {
   const WorkoutSessionScreen({super.key, required this.day, this.plan});
@@ -44,6 +42,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   Timer? _restUiTimer;
 
   final Map<int, List<WorkoutSet>> _recordedSets = {};
+  final Map<int, String> _lastSessionHints = {};
 
   List<WorkoutExercise> get _exercises => widget.day.exercises;
 
@@ -104,29 +103,19 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
           exercise.substituteExercise!,
       ];
 
-      double? lastLoad;
       for (final name in names) {
         final entry = await repo.getLastEntryForExercise(name, userId);
-        if (entry == null || entry.sets.isEmpty) continue;
-        final completedWithLoad = entry.sets
-            .where((s) => s.completed && s.load > 0)
-            .toList();
-        if (completedWithLoad.isNotEmpty) {
-          lastLoad = completedWithLoad.last.load;
-          break;
+        if (entry == null) continue;
+        final target = const ProgressionAnalyzer().nextSessionTarget(entry);
+        if (target == null) continue;
+        _repsControllers[i].text = target.reps.toString();
+        if (target.load > 0) {
+          _loadControllers[i].text = target.load == target.load.roundToDouble()
+              ? target.load.toInt().toString()
+              : target.load.toStringAsFixed(1);
         }
-        final anyWithLoad =
-            entry.sets.where((s) => s.load > 0).toList();
-        if (anyWithLoad.isNotEmpty) {
-          lastLoad = anyWithLoad.last.load;
-          break;
-        }
-      }
-
-      if (lastLoad != null && lastLoad > 0) {
-        _loadControllers[i].text = lastLoad == lastLoad.roundToDouble()
-            ? lastLoad.toInt().toString()
-            : lastLoad.toStringAsFixed(1);
+        _lastSessionHints[i] = target.hint;
+        break;
       }
     }
 
@@ -436,6 +425,18 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                         overflow: TextOverflow.ellipsis,
                         style: textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                    if (_lastSessionHints[_currentExerciseIndex] != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        _lastSessionHints[_currentExerciseIndex]!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.labelLarge?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
@@ -784,7 +785,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       final userId = profile?.id ?? 1;
       final finalSets = _buildFinalSets(updatedExercises);
 
-      final savedEntries = await ref.read(workoutLoggerProvider).logSession(
+      await ref.read(workoutLoggerProvider).logSession(
             day: updatedDay,
             plan: widget.plan,
             notes: _notesController.text.trim().isEmpty
@@ -797,33 +798,6 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       await ref
           .read(workoutNotificationServiceProvider)
           .showWorkoutCompleteNotification();
-
-      await ref
-          .read(progressionProvider.notifier)
-          .analyzeFromSavedEntries(savedEntries);
-
-      final suggestions = ref.read(progressionProvider).valueOrNull ?? [];
-
-      if (suggestions.isNotEmpty && mounted) {
-        final decisions = await Navigator.of(context)
-            .push<Map<String, ProgressionOption?>>(
-          MaterialPageRoute(
-            builder: (_) =>
-                ProgressionSuggestionScreen(suggestions: suggestions),
-          ),
-        );
-        if (decisions != null && mounted) {
-          for (final entry in savedEntries) {
-            final decision = decisions[entry.exerciseName];
-            if (decision != null) {
-              await ref.read(progressionProvider.notifier).saveDecision(
-                    entry: entry,
-                    selectedOption: decision,
-                  );
-            }
-          }
-        }
-      }
 
       messenger.showSnackBar(
         const SnackBar(content: Text('Treino registrado no histórico.')),

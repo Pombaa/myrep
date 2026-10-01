@@ -9,6 +9,7 @@ import '../../models/workout_session.dart';
 import '../../providers/ai_providers.dart';
 import '../../providers/measurement_providers.dart';
 import '../../providers/progress_providers.dart';
+import 'history_month_panel.dart';
 
 class HistoryScreen extends ConsumerWidget {
   const HistoryScreen({super.key});
@@ -29,6 +30,7 @@ class HistoryScreen extends ConsumerWidget {
         onRefresh: () async {
           await ref.read(bodyMeasurementsProvider.notifier).refresh();
           ref.invalidate(workoutSessionsProvider);
+          ref.invalidate(exerciseHistoryMonthProvider);
           ref.invalidate(aiHistoryProvider);
         },
         child: ListView(
@@ -56,11 +58,16 @@ class HistoryScreen extends ConsumerWidget {
                   );
                 }
                 return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    for (final session in sessions) ...[
-                      _SessionCard(session: session),
-                      const SizedBox(height: 10),
-                    ],
+                    HistoryMonthPanel(sessions: sessions),
+                    const SizedBox(height: 22),
+                    Text(
+                      'Últimos treinos',
+                      style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 10),
+                    _RecentSessions(sessions: sessions),
                   ],
                 );
               },
@@ -190,6 +197,51 @@ class HistoryScreen extends ConsumerWidget {
       },
     );
   }
+}
+
+class _RecentSessions extends StatefulWidget {
+  const _RecentSessions({required this.sessions});
+
+  final List<WorkoutSession> sessions;
+
+  @override
+  State<_RecentSessions> createState() => _RecentSessionsState();
+}
+
+class _RecentSessionsState extends State<_RecentSessions> {
+  bool _showAll = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = _showAll ? widget.sessions : widget.sessions.take(5).toList();
+    final hidden = widget.sessions.length - visible.length;
+    return Column(
+      children: [
+        for (final session in visible) ...[
+          _SessionCard(session: session),
+          const SizedBox(height: 10),
+        ],
+        if (hidden > 0)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => setState(() => _showAll = true),
+              child: Text('Mostrar $hidden anteriores'),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+String _previewLine(WorkoutExercise exercise) {
+  final load = exercise.suggestedLoad;
+  final scheme = '${exercise.series}×${exercise.repetitions}';
+  if (load == null || load <= 0) return '· ${exercise.name} · $scheme';
+  final loadText = load == load.roundToDouble()
+      ? load.toInt().toString()
+      : load.toStringAsFixed(1);
+  return '· ${exercise.name} · $scheme · $loadText kg';
 }
 
 class _EmptyHint extends StatelessWidget {
@@ -347,7 +399,7 @@ class _SessionCardState extends State<_SessionCard> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 3),
                     child: Text(
-                      '· ${ex.name}',
+                      _previewLine(ex),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: textTheme.bodyMedium?.copyWith(

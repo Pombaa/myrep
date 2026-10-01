@@ -91,6 +91,20 @@ class ExerciseHistoryRepository {
   }
 
   /// Returns the most recent entry for [exerciseName] with [sessionDate] strictly before [before].
+  Future<List<ExerciseHistoryEntry>> getBetween(
+    int userId,
+    DateTime start,
+    DateTime end,
+  ) async {
+    final rows = await _db.query(
+      _table,
+      where: 'user_id = ? AND session_date >= ? AND session_date < ?',
+      whereArgs: [userId, start.toIso8601String(), end.toIso8601String()],
+      orderBy: 'session_date ASC',
+    );
+    return rows.map(ExerciseHistoryEntry.fromMap).toList();
+  }
+
   Future<ExerciseHistoryEntry?> getLastEntryBeforeSession(
     String exerciseName,
     int userId,

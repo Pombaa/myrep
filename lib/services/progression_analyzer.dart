@@ -261,4 +261,81 @@ class ProgressionAnalyzer {
   double _round(double value) {
     return double.parse(value.toStringAsFixed(2));
   }
+
+  /// Target for the next time this exercise is opened.
+  /// Completed sets that hit the plan bump load or reps. Anything short of
+  /// that repeats the last completed numbers.
+  NextSessionTarget? nextSessionTarget(ExerciseHistoryEntry entry) {
+    final done = entry.sets.where((set) => set.completed).toList();
+    if (done.isEmpty) return null;
+
+    final scheme = detectRepScheme(done);
+    final repeat = NextSessionTarget(
+      reps: done.first.reps,
+      load: done.last.load,
+      hint: 'Última ${_briefSets(done)}',
+    );
+
+    final ready = shouldSuggestProgression(entry.sets, entry.repScheme) &&
+        (scheme == RepScheme.straightSets || scheme == RepScheme.unknown);
+    if (!ready) return repeat;
+
+    final bump = buildProgressionOptions(
+      sets: done,
+      scheme: scheme,
+      muscleGroup: entry.muscleGroup,
+    ).where((option) => option.label != 'Manter').firstOrNull;
+    if (bump == null || bump.projectedSets.isEmpty) return repeat;
+
+    final next = bump.projectedSets.first;
+    return NextSessionTarget(
+      reps: next.reps,
+      load: next.load,
+      hint: _bumpHint(done, bump.projectedSets),
+    );
+  }
+
+  String _bumpHint(List<WorkoutSet> from, List<WorkoutSet> to) {
+    final base = _briefSets(from);
+    final fromReps = from.first.reps;
+    final toReps = to.first.reps;
+    final fromLoad = from.last.load;
+    final toLoad = to.last.load;
+    if ((toLoad - fromLoad).abs() < 0.05 && toReps != fromReps) {
+      return 'Última $base → $toReps reps';
+    }
+    if (toReps == fromReps && (toLoad - fromLoad).abs() >= 0.05) {
+      return 'Última $base → ${_kg(toLoad)}';
+    }
+    return 'Última $base → ${_briefSets(to)}';
+  }
+
+  String _briefSets(List<WorkoutSet> sets) {
+    final sameReps = sets.every((set) => set.reps == sets.first.reps);
+    final reps = sameReps
+        ? '${sets.length}×${sets.first.reps}'
+        : sets.map((set) => set.reps).join('/');
+    final load = sets.last.load;
+    if (load <= 0) return reps;
+    return '$reps · ${_kg(load)}';
+  }
+
+  String _kg(double load) {
+    final text = load == load.roundToDouble()
+        ? load.toInt().toString()
+        : load.toStringAsFixed(1);
+    return '$text kg';
+  }
+}
+
+class NextSessionTarget {
+  const NextSessionTarget({
+    required this.reps,
+    required this.load,
+    required this.hint,
+  });
+
+  final int reps;
+  final double load;
+  final String hint;
 }

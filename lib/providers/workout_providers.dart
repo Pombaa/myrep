@@ -235,6 +235,7 @@ class WorkoutLogger {
 
     _ref.invalidate(progressSummaryProvider);
     _ref.invalidate(workoutSessionsProvider);
+    _ref.invalidate(exerciseHistoryMonthProvider);
     return savedEntries;
   }
 

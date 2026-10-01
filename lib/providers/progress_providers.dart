@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/exercise_progression_suggestion.dart';
 import '../models/progress_summary.dart';
 import '../models/workout_session.dart';
 import 'measurement_providers.dart';
 import 'repository_providers.dart';
+import 'user_providers.dart';
 
 final progressSummaryProvider = FutureProvider<ProgressSummary>((ref) async {
   final measurementsAsync = ref.watch(bodyMeasurementsProvider);
@@ -39,4 +41,12 @@ final progressSummaryProvider = FutureProvider<ProgressSummary>((ref) async {
 final workoutSessionsProvider = FutureProvider<List<WorkoutSession>>((ref) async {
   final repository = ref.watch(workoutRepositoryProvider);
   return repository.fetchSessions(limit: 30);
+});
+
+final exerciseHistoryMonthProvider =
+    FutureProvider.family<List<ExerciseHistoryEntry>, DateTime>((ref, month) async {
+  final userId = ref.watch(userProfileProvider).valueOrNull?.id ?? 1;
+  final start = DateTime(month.year, month.month);
+  final end = DateTime(month.year, month.month + 1);
+  return ref.watch(exerciseHistoryRepositoryProvider).getBetween(userId, start, end);
 });
