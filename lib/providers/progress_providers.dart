@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/utils/muscle_load.dart';
 import '../models/exercise_progression_suggestion.dart';
 import '../models/progress_summary.dart';
 import '../models/workout_session.dart';
@@ -41,6 +42,12 @@ final progressSummaryProvider = FutureProvider<ProgressSummary>((ref) async {
 final workoutSessionsProvider = FutureProvider<List<WorkoutSession>>((ref) async {
   final repository = ref.watch(workoutRepositoryProvider);
   return repository.fetchSessions(limit: 30);
+});
+
+final muscleLoadProvider = FutureProvider<List<MuscleLoadBar>>((ref) async {
+  final userId = ref.watch(userProfileProvider).valueOrNull?.id ?? 1;
+  final entries = await ref.watch(exerciseHistoryRepositoryProvider).getAllForUser(userId);
+  return muscleLoadBars(entries);
 });
 
 final exerciseHistoryMonthProvider =

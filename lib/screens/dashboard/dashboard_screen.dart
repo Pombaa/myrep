@@ -15,6 +15,7 @@ import '../../providers/workout_providers.dart';
 import '../assessment/body_assessment_screen.dart';
 import '../workout/one_off_workout_screen.dart';
 import '../workout/workout_session_screen.dart';
+import 'dashboard_followups.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -53,6 +54,8 @@ class DashboardScreen extends ConsumerWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
+            const ActiveDraftCard(),
+            const ReassessmentCard(),
             _TodayWorkoutCard(plan: plan),
             const SizedBox(height: 16),
             if (measurements.isEmpty) ...[
@@ -99,6 +102,7 @@ class DashboardScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               _MeasurementsChart(measurements: measurements),
             ],
+            const MuscleLoadCard(),
             if (measurements.isNotEmpty) ...[
               const SizedBox(height: 24),
               Card(

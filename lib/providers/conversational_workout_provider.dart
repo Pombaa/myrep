@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/utils/measurement_fallback.dart';
 import '../core/utils/workout_prompt_builder.dart';
 import '../models/ai_interaction.dart';
 import '../models/workout_chat_message.dart';
@@ -36,15 +37,13 @@ class ConversationalWorkoutController extends StateNotifier<WorkoutPlanState> {
 
     try {
       final profile = _ref.read(userProfileProvider).valueOrNull;
-      final latestMeasurement = _ref.read(latestMeasurementProvider);
       if (profile == null) {
         throw Exception('Cadastre seu perfil para gerar um treino.');
       }
-      if (latestMeasurement == null) {
-        throw Exception(
-          'Registre uma avaliação corporal antes de gerar o treino.',
-        );
-      }
+      final resolved = resolveMeasurement(
+        profile,
+        _ref.read(latestMeasurementProvider),
+      );
 
       final aiProvider = _ref.read(selectedAiProviderProvider);
       final apiKeyState = aiProvider == AiProvider.nvidia
@@ -78,7 +77,7 @@ class ConversationalWorkoutController extends StateNotifier<WorkoutPlanState> {
       const promptBuilder = WorkoutPromptBuilder();
       final basePrompt = promptBuilder.build(
         profile: profile,
-        latestMeasurement: latestMeasurement,
+        latestMeasurement: resolved.measurement,
         previousMeasurement: previousMeasurement,
         lastPlan: lastPlan,
         lastSession: lastSession,
@@ -86,6 +85,7 @@ class ConversationalWorkoutController extends StateNotifier<WorkoutPlanState> {
         desiredDays: resolvedDays,
         sessionDurationMinutes: resolvedDuration,
         progressionHistory: progressionHistory.isEmpty ? null : progressionHistory,
+        estimatedFromProfile: resolved.estimated,
       );
 
       final systemPrompt = _buildSystemPrompt(basePrompt, reminders);

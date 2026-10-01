@@ -13,6 +13,7 @@ import '../../providers/repository_providers.dart';
 import '../../providers/services_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../providers/workout_providers.dart';
+import '../../services/workout_draft_store.dart';
 
 class WorkoutSessionScreen extends ConsumerStatefulWidget {
   const WorkoutSessionScreen({super.key, required this.day, this.plan});
@@ -43,6 +44,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
 
   final Map<int, List<WorkoutSet>> _recordedSets = {};
   final Map<int, String> _lastSessionHints = {};
+  int _draftEpoch = 0;
 
   List<WorkoutExercise> get _exercises => widget.day.exercises;
 
@@ -72,7 +74,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_exercises.isNotEmpty) {
         _initializeForegroundService();
-        _prefetchLastLoads();
+        _restoreOrPrefetch();
       }
     });
   }
@@ -82,6 +84,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     if (state == AppLifecycleState.resumed) {
       _syncRestFromWallClock();
     } else if (state == AppLifecycleState.paused) {
+      _persistDraft();
       // Re-assert native countdown so the shade/lock screen stays accurate
       // even if the OEM throttled the Flutter isolate.
       _reassertNativeRestOnBackground();
@@ -120,6 +123,77 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     }
 
     if (mounted) setState(() {});
+  }
+
+  Future<void> _restoreOrPrefetch() async {
+    final draft = await ref.read(workoutDraftStoreProvider).load();
+    if (!mounted) return;
+    if (draft != null && draft.day.dayLabel == widget.day.dayLabel) {
+      _applyDraft(draft);
+      return;
+    }
+    await _prefetchLastLoads();
+  }
+
+  void _applyDraft(WorkoutDraft draft) {
+    final index = draft.exerciseIndex.clamp(0, _exercises.length - 1);
+    _currentExerciseIndex = index;
+    _currentSet = draft.currentSet.clamp(1, _exercises[index].series);
+    _notesController.text = draft.notes;
+    for (var i = 0; i < _exercises.length; i++) {
+      if (i < draft.loads.length) _loadControllers[i].text = draft.loads[i];
+      if (i < draft.reps.length) _repsControllers[i].text = draft.reps[i];
+    }
+    _recordedSets
+      ..clear()
+      ..addAll(draft.recorded);
+    final restEnds = draft.restEndsAt;
+    if (restEnds != null && restEnds.isAfter(DateTime.now())) {
+      _restEndsAt = restEnds;
+      _isResting = true;
+      _restUiTimer?.cancel();
+      _restUiTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        _syncRestFromWallClock();
+      });
+      _syncRestFromWallClock();
+    }
+    setState(() {});
+  }
+
+  Future<void> _persistDraft() async {
+    final epoch = _draftEpoch;
+    final hasProgress = _recordedSets.values.any((sets) => sets.isNotEmpty) ||
+        _currentExerciseIndex > 0 ||
+        _currentSet > 1 ||
+        _isResting;
+    if (_isSaving || _exercises.isEmpty || !hasProgress) return;
+    final draft = WorkoutDraft(
+      day: widget.day,
+      planId: widget.plan?.id,
+      exerciseIndex: _currentExerciseIndex,
+      currentSet: _currentSet,
+      restEndsAt: _isResting ? _restEndsAt : null,
+      notes: _notesController.text,
+      loads: [for (final controller in _loadControllers) controller.text],
+      reps: [for (final controller in _repsControllers) controller.text],
+      recorded: {
+        for (final entry in _recordedSets.entries)
+          entry.key: List<WorkoutSet>.from(entry.value),
+      },
+    );
+    if (epoch != _draftEpoch) return;
+    await ref.read(workoutDraftStoreProvider).save(draft);
+    if (epoch != _draftEpoch) {
+      await ref.read(workoutDraftStoreProvider).clear();
+      return;
+    }
+    ref.invalidate(activeWorkoutDraftProvider);
+  }
+
+  Future<void> _clearDraft() async {
+    _draftEpoch++;
+    await ref.read(workoutDraftStoreProvider).clear();
+    ref.invalidate(activeWorkoutDraftProvider);
   }
 
   Future<void> _initializeForegroundService() async {
@@ -174,6 +248,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     _restUiTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _syncRestFromWallClock();
     });
+    _persistDraft();
   }
 
   void _syncRestFromWallClock() {
@@ -608,6 +683,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       _restSecondsRemaining = 0;
     });
     _updateExerciseNotification();
+    _persistDraft();
   }
 
   void _skipExercise() {
@@ -802,6 +878,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       messenger.showSnackBar(
         const SnackBar(content: Text('Treino registrado no histórico.')),
       );
+      await _clearDraft();
       if (mounted) Navigator.of(context).pop();
     } catch (error) {
       messenger.showSnackBar(
@@ -837,6 +914,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     );
     if (confirmed == true && mounted) {
       await ref.read(workoutForegroundServiceProvider).stopService();
+      await _clearDraft();
       if (mounted) Navigator.of(context).pop();
     }
   }

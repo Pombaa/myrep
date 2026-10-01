@@ -20,6 +20,7 @@ class WorkoutPromptBuilder {
     int? desiredDays,
     int? sessionDurationMinutes,
     Map<String, List<ExerciseHistoryEntry>>? progressionHistory,
+    bool estimatedFromProfile = false,
   }) {
     final buffer = StringBuffer();
     buffer.writeln('Você é um personal trainer virtual especializado em periodização e progressão de carga.');
@@ -36,6 +37,9 @@ class WorkoutPromptBuilder {
     buffer.writeln('- Objetivo: ${objectiveOverride ?? profile.objective}');
     if ((profile.restrictions ?? '').trim().isNotEmpty) {
       buffer.writeln('- Restrições: ${profile.restrictions}');
+    }
+    if (estimatedFromProfile) {
+      buffer.writeln('- Gordura e massa magra são estimadas pelo perfil (peso, altura, idade e sexo). Não há avaliação com fita.');
     }
 
     if (previousMeasurement != null) {

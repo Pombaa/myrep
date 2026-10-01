@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/utils/measurement_fallback.dart';
 import '../core/utils/workout_prompt_builder.dart';
 import '../data/exercise_library.dart';
 import '../models/ai_interaction.dart';
@@ -68,124 +69,143 @@ class WorkoutPlanController extends StateNotifier<AsyncValue<WorkoutPlan?>> {
     int? desiredDays,
     int? sessionDurationMinutes,
   }) async {
-    final previousPlan = state.valueOrNull;
     state = const AsyncValue.loading();
     try {
-      final profile = _ref.read(userProfileProvider).valueOrNull;
-      final latestMeasurement = _ref.read(latestMeasurementProvider);
-      if (profile == null) {
-        throw Exception('Cadastre seu perfil para gerar um treino.');
-      }
-      if (latestMeasurement == null) {
-        throw Exception('Registre uma avaliação corporal antes de gerar o treino.');
-      }
-
-      final aiProvider = _ref.read(selectedAiProviderProvider);
-      final apiKeyState = aiProvider == AiProvider.nvidia
-          ? _ref.read(nvidiaKeyProvider)
-          : _ref.read(openAiKeyProvider);
-      final apiKey = apiKeyState.when(
-        data: (value) => value,
-        loading: () => null,
-        error: (_, __) => null,
-      );
-      if (apiKey == null || apiKey.isEmpty) {
-        final name = aiProvider == AiProvider.nvidia ? 'NVIDIA' : 'OpenAI';
-        throw Exception('Informe a chave da API $name nas configurações.');
-      }
-
-      final previousMeasurement = _ref.read(previousMeasurementProvider);
-      final lastPlan = previousPlan;
-      final lastSession = await _repository.lastSession();
-      final progressSummary = await _ref.read(progressSummaryProvider.future);
-
-      final resolvedDays = desiredDays ?? previousPlan?.desiredDays ?? 5;
-      final resolvedDuration = sessionDurationMinutes ?? previousPlan?.sessionDurationMinutes ?? 60;
-
-      final historyRepo = _ref.read(exerciseHistoryRepositoryProvider);
-      final progressionHistory =
-          await historyRepo.getProgressionSummary(profile.id ?? 1, limit: 4);
-
-      const promptBuilder = WorkoutPromptBuilder();
-      final prompt = promptBuilder.build(
-        profile: profile,
-        latestMeasurement: latestMeasurement,
-        previousMeasurement: previousMeasurement,
-        lastPlan: lastPlan,
-        lastSession: lastSession,
-        progressSummary: progressSummary,
+      final plan = await composePlan(
         customRequest: customRequest,
-        desiredDays: resolvedDays,
-        progressionHistory: progressionHistory,
-        sessionDurationMinutes: resolvedDuration,
+        desiredDays: desiredDays,
+        sessionDurationMinutes: sessionDurationMinutes,
       );
-
-      final openAi = _ref.read(openAiServiceProvider);
-      final messages = [
-        {
-          'role': 'system',
-          'content': 'Você cria treinos estruturados sempre em JSON válido.'
-        },
-        {'role': 'user', 'content': prompt},
-      ];
-      final result = await openAi.generateWorkoutPlan(
-        apiKey: apiKey!,
-        messages: messages,
-        baseUrl: aiProvider.baseUrl,
-        model: aiProvider.defaultModel,
-        useStructuredOutput: aiProvider.useStructuredOutput,
-        providerLabel: aiProvider.label,
-      );
-      final parsed = jsonDecode(result);
-      List<dynamic> daysRaw;
-      if (parsed is Map<String, dynamic>) {
-        final raw = parsed['treino'];
-        if (raw is List) {
-          daysRaw = raw;
-        } else {
-          throw const OpenAiException('Resposta sem campo "treino".');
-        }
-      } else if (parsed is List) {
-        daysRaw = parsed;
-      } else {
-        throw const OpenAiException('Formato de resposta inválido.');
-      }
-
-      final days = daysRaw
-          .map((dynamic item) => WorkoutDay.fromJson((item as Map).cast<String, Object?>()))
-          .toList();
-
-      final metadata = <String, dynamic>{};
-      if (customRequest != null && customRequest.isNotEmpty) {
-        metadata['custom_request'] = customRequest;
-      }
-
-      final plan = WorkoutPlan(
-        userId: profile.id ?? 1,
-        generatedAt: DateTime.now(),
-        objective: profile.objective,
-        focus: customRequest,
-        days: days,
-        metadata: metadata.isEmpty ? null : metadata,
-        desiredDays: resolvedDays,
-        sessionDurationMinutes: resolvedDuration,
-      );
-
       final saved = await _repository.savePlan(plan);
-      final aiRepository = _ref.read(aiRepositoryProvider);
-      await aiRepository.saveInteraction(
-        AiInteraction(
-          createdAt: DateTime.now(),
-          prompt: prompt,
-          response: result,
-          metadata: jsonEncode({'type': 'workout_plan'}),
-        ),
-      );
       state = AsyncValue.data(saved);
       _ref.invalidate(progressSummaryProvider);
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
     }
+  }
+
+  /// Builds a plan without replacing the one on screen. The caller decides
+  /// whether to save it.
+  Future<WorkoutPlan> composePlan({
+    String? customRequest,
+    int? desiredDays,
+    int? sessionDurationMinutes,
+    WorkoutPlan? previousPlan,
+  }) async {
+    final profile = _ref.read(userProfileProvider).valueOrNull;
+    if (profile == null) {
+      throw Exception('Cadastre seu perfil para gerar um treino.');
+    }
+    final resolved = resolveMeasurement(
+      profile,
+      _ref.read(latestMeasurementProvider),
+    );
+
+    final aiProvider = _ref.read(selectedAiProviderProvider);
+    final apiKeyState = aiProvider == AiProvider.nvidia
+        ? _ref.read(nvidiaKeyProvider)
+        : _ref.read(openAiKeyProvider);
+    final apiKey = apiKeyState.when(
+      data: (value) => value,
+      loading: () => null,
+      error: (_, __) => null,
+    );
+    if (apiKey == null || apiKey.isEmpty) {
+      final name = aiProvider == AiProvider.nvidia ? 'NVIDIA' : 'OpenAI';
+      throw Exception('Informe a chave da API $name nas configurações.');
+    }
+
+    final previousMeasurement = _ref.read(previousMeasurementProvider);
+    final lastPlan = previousPlan ?? state.valueOrNull;
+    final lastSession = await _repository.lastSession();
+    final progressSummary = await _ref.read(progressSummaryProvider.future);
+
+    final resolvedDays = desiredDays ?? lastPlan?.desiredDays ?? 5;
+    final resolvedDuration = sessionDurationMinutes ?? lastPlan?.sessionDurationMinutes ?? 60;
+
+    final historyRepo = _ref.read(exerciseHistoryRepositoryProvider);
+    final progressionHistory =
+        await historyRepo.getProgressionSummary(profile.id ?? 1, limit: 4);
+
+    const promptBuilder = WorkoutPromptBuilder();
+    final prompt = promptBuilder.build(
+      profile: profile,
+      latestMeasurement: resolved.measurement,
+      previousMeasurement: previousMeasurement,
+      lastPlan: lastPlan,
+      lastSession: lastSession,
+      progressSummary: progressSummary,
+      customRequest: customRequest,
+      desiredDays: resolvedDays,
+      progressionHistory: progressionHistory,
+      sessionDurationMinutes: resolvedDuration,
+      estimatedFromProfile: resolved.estimated,
+    );
+
+    final openAi = _ref.read(openAiServiceProvider);
+    final messages = [
+      {
+        'role': 'system',
+        'content': 'Você cria treinos estruturados sempre em JSON válido.'
+      },
+      {'role': 'user', 'content': prompt},
+    ];
+    final result = await openAi.generateWorkoutPlan(
+      apiKey: apiKey,
+      messages: messages,
+      baseUrl: aiProvider.baseUrl,
+      model: aiProvider.defaultModel,
+      useStructuredOutput: aiProvider.useStructuredOutput,
+      providerLabel: aiProvider.label,
+    );
+    final parsed = jsonDecode(result);
+    List<dynamic> daysRaw;
+    if (parsed is Map<String, dynamic>) {
+      final raw = parsed['treino'];
+      if (raw is List) {
+        daysRaw = raw;
+      } else {
+        throw const OpenAiException('Resposta sem campo "treino".');
+      }
+    } else if (parsed is List) {
+      daysRaw = parsed;
+    } else {
+      throw const OpenAiException('Formato de resposta inválido.');
+    }
+
+    final days = daysRaw
+        .map((dynamic item) => WorkoutDay.fromJson((item as Map).cast<String, Object?>()))
+        .toList();
+
+    final metadata = <String, dynamic>{};
+    if (customRequest != null && customRequest.isNotEmpty) {
+      metadata['custom_request'] = customRequest;
+    }
+    if (resolved.estimated) {
+      metadata['measurement'] = 'estimated_from_profile';
+    }
+
+    final plan = WorkoutPlan(
+      userId: profile.id ?? 1,
+      generatedAt: DateTime.now(),
+      objective: profile.objective,
+      focus: customRequest,
+      days: days,
+      metadata: metadata.isEmpty ? null : metadata,
+      desiredDays: resolvedDays,
+      sessionDurationMinutes: resolvedDuration,
+    );
+
+    final aiRepository = _ref.read(aiRepositoryProvider);
+    await aiRepository.saveInteraction(
+      AiInteraction(
+        createdAt: DateTime.now(),
+        prompt: prompt,
+        response: result,
+        metadata: jsonEncode({'type': 'workout_plan'}),
+      ),
+    );
+    return plan;
   }
 }
 
@@ -236,6 +256,7 @@ class WorkoutLogger {
     _ref.invalidate(progressSummaryProvider);
     _ref.invalidate(workoutSessionsProvider);
     _ref.invalidate(exerciseHistoryMonthProvider);
+    _ref.invalidate(muscleLoadProvider);
     return savedEntries;
   }
 

@@ -14,6 +14,8 @@ import '../../providers/progress_providers.dart';
 import '../../providers/services_providers.dart';
 import '../../providers/settings_providers.dart' show themeModeProvider, ThemeModeController, openAiKeyProvider, OpenAiKeyController, nvidiaKeyProvider, NvidiaKeyController, selectedAiProviderProvider, SelectedAiProviderController, AiProvider;
 import '../../providers/workout_providers.dart';
+import '../../providers/user_providers.dart';
+import 'profile_edit_screen.dart';
 import 'reminders_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -59,6 +61,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (ref.watch(userProfileProvider).valueOrNull case final profile?)
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: Text(profile.name),
+                subtitle: Text(
+                  [
+                    profile.objective,
+                    if ((profile.restrictions ?? '').trim().isNotEmpty)
+                      profile.restrictions!,
+                  ].join(' · '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ProfileEditScreen(profile: profile),
+                    ),
+                  );
+                },
+              ),
+            ),
+          if (ref.watch(userProfileProvider).valueOrNull != null)
+            const SizedBox(height: 16),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
