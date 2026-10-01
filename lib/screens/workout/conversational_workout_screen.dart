@@ -319,6 +319,8 @@ class _ConversationalWorkoutScreenState
                   return ExpansionTile(
                     title: Text(
                       '${day.dayLabel} • ${day.muscleGroup}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text('${day.exercises.length} exercícios'),

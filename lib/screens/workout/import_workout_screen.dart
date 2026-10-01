@@ -392,10 +392,17 @@ class _ImportWorkoutScreenState extends ConsumerState<ImportWorkoutScreen> {
                           fontWeight: FontWeight.bold),
                     ),
                   ),
-                  title: Text(_preview![i].dayLabel,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  title: Text(
+                    _preview![i].dayLabel,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   subtitle: Text(
-                      '${_preview![i].muscleGroup} · ${_preview![i].exercises.length} exercícios'),
+                    '${_preview![i].muscleGroup} · ${_preview![i].exercises.length} exercícios',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   children: _preview![i]
                       .exercises
                       .map((e) => ListTile(

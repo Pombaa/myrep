@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/utils/muscle_summary.dart';
 import '../../core/utils/workout_day_matcher.dart';
 import '../../models/workout_plan.dart';
 import '../../providers/workout_providers.dart';
@@ -14,24 +15,6 @@ class WorkoutPlanTab extends ConsumerWidget {
   const WorkoutPlanTab({super.key, this.onOpenTrainer});
 
   final VoidCallback? onOpenTrainer;
-
-  String _abbreviateDayLabel(String dayLabel) {
-    final abbreviations = {
-      'Segunda-feira': 'Seg',
-      'Terça-feira': 'Ter',
-      'Quarta-feira': 'Qua',
-      'Quinta-feira': 'Qui',
-      'Sexta-feira': 'Sex',
-      'Sábado': 'Sáb',
-      'Domingo': 'Dom',
-      'Segunda': 'Seg',
-      'Terça': 'Ter',
-      'Quarta': 'Qua',
-      'Quinta': 'Qui',
-      'Sexta': 'Sex',
-    };
-    return abbreviations[dayLabel] ?? dayLabel;
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -174,7 +157,10 @@ class WorkoutPlanTab extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
                         'Seu treino',
@@ -182,7 +168,6 @@ class WorkoutPlanTab extends ConsumerWidget {
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-                      const SizedBox(width: 8),
                       _SourceChip(source: plan.source),
                     ],
                   ),
@@ -193,6 +178,8 @@ class WorkoutPlanTab extends ConsumerWidget {
                       DateFormat('dd/MM/yyyy').format(plan.generatedAt),
                       if (_buildPlanInfo(plan).isNotEmpty) _buildPlanInfo(plan),
                     ].where((e) => e.isNotEmpty).join(' · '),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -341,11 +328,9 @@ class WorkoutPlanTab extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
 
-        // Day cards — today first visually (keep plan order, highlight today)
-        for (final day in plan.days) ...[
+        for (final day in planDaysWithTodayFirst(plan)) ...[
           _DayCard(
             day: day,
-            abbreviate: _abbreviateDayLabel,
             isToday: todayDay != null && day.dayLabel == todayDay.dayLabel,
             onStart: day.exercises.isEmpty
                 ? null
@@ -390,8 +375,14 @@ class WorkoutPlanTab extends ConsumerWidget {
 
   String _buildPlanInfo(WorkoutPlan plan) {
     final parts = <String>[];
-    if (plan.focus != null && plan.focus!.isNotEmpty) {
-      parts.add(plan.focus!);
+    final focus = plan.focus
+        ?.replaceAll(
+          RegExp(r'\s*[—-]\s*\d+\s+dias\s*$', caseSensitive: false),
+          '',
+        )
+        .trim();
+    if (focus != null && focus.isNotEmpty) {
+      parts.add(focus);
     }
     if (plan.sessionDurationMinutes != null) {
       parts.add('~${plan.sessionDurationMinutes} min');
@@ -403,13 +394,11 @@ class WorkoutPlanTab extends ConsumerWidget {
 class _DayCard extends StatefulWidget {
   const _DayCard({
     required this.day,
-    required this.abbreviate,
     required this.isToday,
     this.onStart,
   });
 
   final WorkoutDay day;
-  final String Function(String) abbreviate;
   final bool isToday;
   final VoidCallback? onStart;
 
@@ -426,7 +415,7 @@ class _DayCardState extends State<_DayCard> {
     final textTheme = Theme.of(context).textTheme;
     final day = widget.day;
     final isRest = day.exercises.isEmpty;
-    final abbr = widget.abbreviate(day.dayLabel);
+    final abbr = dayBadgeLabel(day.dayLabel);
     final preview = day.exercises.take(3).map((e) => e.name).toList();
     final extra = day.exercises.length - preview.length;
 
@@ -450,69 +439,32 @@ class _DayCardState extends State<_DayCard> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: widget.isToday
-                        ? colorScheme.primary
-                        : colorScheme.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    abbr,
-                    style: textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: widget.isToday
-                          ? colorScheme.onPrimary
-                          : colorScheme.onSurface,
-                    ),
-                  ),
+                _DayBadge(
+                  label: abbr,
+                  isToday: widget.isToday,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              day.muscleGroup,
-                              style: textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          if (widget.isToday) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: colorScheme.primary,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                'Hoje',
-                                style: textTheme.labelSmall?.copyWith(
-                                  color: colorScheme.onPrimary,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
+                      Text(
+                        muscleSummaryForDay(day),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         isRest
                             ? '${day.dayLabel} · Descanso'
                             : '${day.dayLabel} · ${day.exercises.length} exercícios',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),
@@ -593,6 +545,60 @@ class _DayCardState extends State<_DayCard> {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DayBadge extends StatelessWidget {
+  const _DayBadge({required this.label, required this.isToday});
+
+  final String label;
+  final bool isToday;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return SizedBox(
+      width: 52,
+      child: Column(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            clipBehavior: Clip.antiAlias,
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isToday ? colorScheme.primary : colorScheme.surfaceContainerHigh,
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: isToday ? colorScheme.onPrimary : colorScheme.onSurface,
+                ),
+              ),
+            ),
+          ),
+          if (isToday) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Hoje',
+              maxLines: 1,
+              style: textTheme.labelSmall?.copyWith(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

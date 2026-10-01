@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/utils/muscle_summary.dart';
 import '../../core/utils/workout_day_matcher.dart';
 import '../../models/body_measurement.dart';
 import '../../models/progress_summary.dart';
@@ -62,12 +63,16 @@ class DashboardScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Bem-vindo ao FitAI Trainer',
+                        plan == null
+                            ? 'Bem-vindo ao FitAI Trainer'
+                            : 'Avaliação corporal',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Registre sua primeira avaliação corporal para que a IA possa criar um treino personalizado.',
+                        plan == null
+                            ? 'Registre sua primeira avaliação corporal para que a IA possa criar um treino personalizado.'
+                            : 'O plano já está montado. Uma avaliação serve para acompanhar peso, gordura e massa magra.',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 16),
@@ -94,20 +99,22 @@ class DashboardScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               _MeasurementsChart(measurements: measurements),
             ],
-            const SizedBox(height: 24),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.calendar_today),
-                title: const Text('Registrar nova avaliação'),
-                subtitle: const Text('Atualize suas medidas e acompanhe a evolução.'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const BodyAssessmentScreen()),
-                  );
-                },
+            if (measurements.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.calendar_today),
+                  title: const Text('Registrar nova avaliação'),
+                  subtitle: const Text('Atualize suas medidas e acompanhe a evolução.'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const BodyAssessmentScreen()),
+                    );
+                  },
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -184,19 +191,44 @@ class _TodayWorkoutCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '${day.dayLabel} · ${day.muscleGroup}',
+              muscleSummaryForDay(day),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 4),
             Text(
               isRest
-                  ? 'Dia de descanso'
-                  : '${day.exercises.length} exercícios',
+                  ? '${day.dayLabel} · Dia de descanso'
+                  : '${day.dayLabel} · ${day.exercises.length} exercícios',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
             if (!isRest) ...[
+              const SizedBox(height: 10),
+              for (final exercise in day.exercises.take(3))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text(
+                    '· ${exercise.name}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              if (day.exercises.length > 3)
+                Text(
+                  '+${day.exercises.length - 3} mais',
+                  style: textTheme.labelMedium?.copyWith(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               const SizedBox(height: 14),
               FilledButton.icon(
                 icon: const Icon(Icons.play_arrow),
@@ -375,15 +407,26 @@ class _MeasurementsChart extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Row(
+            Wrap(
+              spacing: 16,
+              runSpacing: 8,
               children: [
-                Container(width: 14, height: 3, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 6),
-                const Text('Massa magra (kg)'),
-                const SizedBox(width: 16),
-                Container(width: 14, height: 3, color: Theme.of(context).colorScheme.secondary),
-                const SizedBox(width: 6),
-                const Text('% Gordura'),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(width: 14, height: 3, color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 6),
+                    const Text('Massa magra (kg)'),
+                  ],
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(width: 14, height: 3, color: Theme.of(context).colorScheme.secondary),
+                    const SizedBox(width: 6),
+                    const Text('% Gordura'),
+                  ],
+                ),
               ],
             ),
           ],

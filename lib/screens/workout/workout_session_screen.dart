@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/utils/muscle_summary.dart';
 import '../../models/exercise_progression_suggestion.dart';
 import '../../models/workout_plan.dart';
 import '../../models/workout_set.dart';
@@ -318,11 +319,15 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.day.muscleGroup,
+              muscleSummaryForDay(widget.day),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             Text(
               '${widget.day.dayLabel} · Ex ${_currentExerciseIndex + 1}/${_exercises.length}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: textTheme.labelSmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -392,6 +397,8 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                         Expanded(
                           child: Text(
                             _displayName(_currentExerciseIndex),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
                             style: textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w800,
                               height: 1.2,
@@ -425,6 +432,8 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                       const SizedBox(height: 2),
                       Text(
                         'Substituto de ${exercise.name}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),
@@ -440,16 +449,19 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        Text(
-                          _isResting
-                              ? 'Descanso antes da série $_currentSet'
-                              : 'Série $_currentSet de ${exercise.series}',
-                          style: textTheme.labelLarge?.copyWith(
-                            color: colorScheme.primary,
-                            fontWeight: FontWeight.w700,
+                        Expanded(
+                          child: Text(
+                            _isResting
+                                ? 'Descanso antes da série $_currentSet'
+                                : 'Série $_currentSet de ${exercise.series}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.labelLarge?.copyWith(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
-                        const Spacer(),
                         if (hasTips)
                           TextButton.icon(
                             style: TextButton.styleFrom(

@@ -283,27 +283,20 @@ class _ExerciseTile extends StatelessWidget {
               ),
             ),
           ),
-          title: Text(entry.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Text(entry.subtitle),
+          title: Text(
+            entry.name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          subtitle: Text(
+            muscle == null ? entry.subtitle : '${entry.subtitle} · $muscle',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (muscle != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: colorScheme.secondaryContainer,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    muscle,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: colorScheme.onSecondaryContainer,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
               IconButton(
                 icon: Icon(Icons.delete_outline, color: colorScheme.error, size: 20),
                 onPressed: onDelete,

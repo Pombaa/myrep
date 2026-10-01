@@ -1,5 +1,5 @@
-import '../../data/exercise_library.dart';
 import '../../models/workout_plan.dart';
+import 'muscle_summary.dart';
 
 /// Parses free-form Portuguese workout plans (markdown / WhatsApp / lists)
 /// into [WorkoutDay]s without calling an LLM.
@@ -49,14 +49,19 @@ List<WorkoutDay>? tryParseWorkoutText(String text) {
       .where((d) => d.exercises.isNotEmpty || !_looksLikeRestDay(d.label))
       .where((d) => d.exercises.isNotEmpty)
       .map((d) {
-        final muscle = d.exercises.isNotEmpty
-            ? (muscleGroupForExercise(d.exercises.first.name) ??
-                _muscleFromHint(d.focusHint) ??
-                'Misto')
-            : 'Misto';
+        final draft = WorkoutDay(
+          dayLabel: d.label,
+          muscleGroup: 'Misto',
+          exercises: d.exercises,
+        );
+        final inferred = d.exercises.isEmpty
+            ? (_muscleFromHint(d.focusHint) ?? 'Misto')
+            : muscleSummaryForDay(draft);
         return WorkoutDay(
           dayLabel: d.label,
-          muscleGroup: muscle,
+          muscleGroup: inferred == 'Misto'
+              ? (_muscleFromHint(d.focusHint) ?? inferred)
+              : inferred,
           exercises: d.exercises,
         );
       })
@@ -292,10 +297,12 @@ WorkoutExercise? _matchExerciseLine(String line) {
     if (inner.isNotEmpty && inner.length < 80) notes.add(inner);
   }
 
+  // Match rest intervals; never treat the "s" in "séries" as seconds.
   final restTime = RegExp(
-    r'(\d+\s*(?:a|à|até|-|–)\s*\d+\s*(?:min|s|seg)|'
-    r'\d+\s*(?:min|s|seg)(?:undos?)?'
-    r'(?:\s+de\s+descanso)?)',
+    r'(\d+\s*(?:a|à|até|-|–)\s*\d+\s*(?:min(?:utos?)?|seg(?:undos?)?)|'
+    r'\d+\s*(?:min(?:utos?)?|seg(?:undos?)?)|'
+    r'\d+\s*s(?=[\s|*.,)]|$))'
+    r'(?:\s+de\s+descanso)?',
     caseSensitive: false,
   ).firstMatch(rest);
   if (restTime != null) {
@@ -355,11 +362,14 @@ WorkoutDay workoutDayFromLooseMap(Map<String, dynamic> map) {
       .toString()
       .trim();
   final muscle = (map['grupo_muscular'] as String?)?.trim();
+  final draft = WorkoutDay(
+    dayLabel: label.isEmpty ? 'Treino' : label,
+    muscleGroup: 'Misto',
+    exercises: exercises,
+  );
   final muscleGroup = (muscle != null && muscle.isNotEmpty)
       ? muscle
-      : (exercises.isNotEmpty
-          ? (muscleGroupForExercise(exercises.first.name) ?? 'Misto')
-          : 'Misto');
+      : muscleSummaryForDay(draft);
 
   return WorkoutDay(
     dayLabel: label.isEmpty ? 'Treino' : label,

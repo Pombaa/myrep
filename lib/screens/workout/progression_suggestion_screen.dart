@@ -85,7 +85,9 @@ class _ProgressionSuggestionScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -102,7 +104,6 @@ class _ProgressionSuggestionScreenState
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
@@ -122,6 +123,8 @@ class _ProgressionSuggestionScreenState
                     const SizedBox(height: 12),
                     Text(
                       suggestion.exerciseName,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                       style: textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
